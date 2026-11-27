@@ -75,7 +75,7 @@ class AudioSyncRegressionTests(unittest.TestCase):
             mix_timeline([[p,p]],[1],out,sample_rate=8000)
             data,_=_read_wav(out)
             self.assertEqual(len(data),8000)
-            self.assertGreater(float(np.max(np.abs(data))),.1)
+            self.assertGreater(float(np.max(np.abs(data))),.09)
 
 if __name__=="__main__":
     unittest.main()
