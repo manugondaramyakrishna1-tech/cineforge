@@ -1,4 +1,5 @@
-from cineforge.export_report import build_report, report_markdown
+import json
+from cineforge.export_report import build_report, save_report, report_markdown
 
 def test_report_status_and_fields():
     report=build_report({"valid":True,"width":1280,"height":720,"fps":30,"duration_seconds":5,"video_frames_decoded":150,"audio_frames_decoded":160,"audio_present":True,"file_size_bytes":12345})
@@ -11,3 +12,16 @@ def test_report_includes_warnings():
     report=build_report({"valid":False},warnings=["Optional soundtrack missing"])
     assert report["status"]=="FAIL"
     assert "Optional soundtrack missing" in report_markdown(report)
+
+def test_report_persists_as_valid_json(tmp_path):
+    report=build_report({"valid":True,"width":640,"height":360})
+    target=save_report(report,tmp_path/"nested"/"report.json")
+    assert target.exists()
+    loaded=json.loads(target.read_text(encoding="utf-8"))
+    assert loaded["status"]=="PASS"
+    assert loaded["validation"]["width"]==640
+
+def test_report_markdown_handles_sparse_validation():
+    md=report_markdown(build_report({"valid":False},warnings=[]))
+    assert "FAIL" in md
+    assert "- None" in md
