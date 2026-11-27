@@ -25,11 +25,19 @@ from cineforge.export_report import build_report, save_report, report_markdown
 from cineforge.voice_studio import VOICE_PROFILES, narration_text
 from cineforge.sound_studio import validate_audio_tracks, mix_settings
 from cineforge.export_presets import PRESETS, get_preset
+from cineforge.release_audit import audit_repo, save_audit
 
 
 st.set_page_config(page_title="CineForge AI Studio", page_icon="🎬", layout="wide")
 st.title("🎬 CineForge AI — Production Studio")
 st.caption("Storyboard, scene review, rendering, narration, soundtrack and final MP4. No FFmpeg executable is called.")
+
+with st.expander("Release readiness audit"):
+    audit = audit_repo(".")
+    st.json(audit)
+    audit_path = save_audit(audit, Path("outputs/cineforge_release_audit.json"))
+    st.download_button("Download release audit JSON", audit_path.read_bytes(),
+                      file_name="cineforge_release_audit.json", mime="application/json")
 
 from cineforge.startup_check import run_checks
 with st.expander("Startup diagnostics"):
