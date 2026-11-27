@@ -15,6 +15,7 @@ from cineforge.health import check_server, format_queue
 from cineforge.checkpoint import save_checkpoint, load_checkpoint
 from cineforge.scene_review import review_scenes
 from cineforge.timeline import move_item, validate_timeline
+from cineforge.visual_timeline import build_visual_timeline
 from cineforge.project_store import save_project, load_project, list_projects
 from cineforge.project_database import save_project_record, load_project_record, list_project_records
 from cineforge.project_state import apply_project_settings, project_settings_payload, reorder_scenes_by_titles
@@ -311,6 +312,41 @@ with st.expander("Asset inventory", expanded=False):
         st.info("No recognized assets found under outputs yet.")
 st.header("Scene Asset Links & Replacement History")
 scene_asset_manifest = workspace_reports / "scene_assets.json"
+
+st.header("Visual Preview Timeline")
+timeline_clip_paths = []
+for timeline_index in range(1, len(scenes) + 1):
+    candidates = sorted((workspace_renders / f"final_scene_{timeline_index}").glob("*"))
+    candidates = [path for path in candidates if path.is_file() and path.suffix.lower() in {".mp4", ".webm", ".mov"}]
+    timeline_clip_paths.append(candidates[0] if candidates else None)
+registered_timeline_clips = [
+    path if path is not None else workspace_renders / f"__missing_scene_{index}.mp4"
+    for index, path in enumerate(timeline_clip_paths, 1)
+]
+resolved_timeline_clips = resolve_scene_videos(scene_asset_manifest, registered_timeline_clips)
+timeline_report = build_visual_timeline(scenes, resolved_timeline_clips, transition_seconds)
+timeline_metrics = st.columns(4)
+timeline_metrics[0].metric("Scenes", timeline_report["scene_count"])
+timeline_metrics[1].metric("Ready clips", timeline_report["ready_count"])
+timeline_metrics[2].metric("Missing clips", timeline_report["missing_count"])
+timeline_metrics[3].metric("Timeline duration", f'{timeline_report["total_seconds"]:.1f}s')
+if timeline_report["missing_count"]:
+    st.warning("Some scenes do not have a usable video clip yet. Render or register a replacement before preview assembly.")
+for timeline_row in timeline_report["scenes"]:
+    with st.container(border=True):
+        timeline_cols = st.columns([3, 1, 1])
+        timeline_cols[0].markdown(f"**Scene {timeline_row['scene']}: {timeline_row['title']}**")
+        timeline_cols[1].write(f"{timeline_row['start']:.1f}s – {timeline_row['end']:.1f}s")
+        timeline_cols[2].write(f"{timeline_row['duration']:.1f}s")
+        st.progress(min(1.0, timeline_row["duration"] / max(timeline_report["total_seconds"], 1.0)))
+        if timeline_row["clip_ready"]:
+            st.video(timeline_row["clip_path"])
+            if timeline_row["transition_after"]:
+                st.caption(f"Crossfade after this scene: {timeline_row['transition_after']:.1f}s")
+        else:
+            st.info("Video clip missing — render this scene or activate a registered replacement.")
+with st.expander("Timeline data"):
+    st.json(timeline_report)
 scene_asset_rows = scene_asset_inventory(scene_asset_manifest)
 if scene_asset_rows:
     st.dataframe(scene_asset_rows, use_container_width=True)
