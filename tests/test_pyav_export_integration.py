@@ -52,7 +52,7 @@ class PyAVExportIntegrationTests(unittest.TestCase):
             self.assertGreater(result["video_frames_decoded"], 0)
             self.assertGreater(result["file_size_bytes"], 0)
 
-    def test_audio_video_duration_mismatch_rejected(self):
+    def test_short_audio_is_padded_to_video_duration(self):
         with tempfile.TemporaryDirectory() as tmp:
             source = Path(tmp) / "source.mp4"
             audio = Path(tmp) / "short_audio.wav"
@@ -60,8 +60,9 @@ class PyAVExportIntegrationTests(unittest.TestCase):
             self._make_video(source, (80, 100, 160), frames=12, fps=12)
             self._make_audio(audio, seconds=0.1, amplitude=5000)
             assemble([source], output, fps=12, audio_path=audio)
-            with self.assertRaisesRegex(ValueError, "duration mismatch"):
-                validate_final_video(output, 64, 64, 12, require_audio=True)
+            result = validate_final_video(output, 64, 64, 12, require_audio=True)
+            self.assertTrue(result["valid"])
+            self.assertLessEqual(result["audio_video_duration_delta_seconds"], 0.5)
 
     def test_audio_validator_reports_silent_track(self):
         with tempfile.TemporaryDirectory() as tmp:
