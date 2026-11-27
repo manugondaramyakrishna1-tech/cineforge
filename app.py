@@ -463,6 +463,20 @@ if workflow_file:
             )
             report_path = save_report(export_report, Path("outputs/cineforge_export_report.json"))
             st.markdown(report_markdown(export_report))
+            from cineforge.quality_gate import quality_gate
+            gate_result = quality_gate(
+                validation, audio_quality if "audio_quality" in locals() else None,
+                scene_count=len(valid_clips), expected_scene_count=len(scenes),
+                clip_issues=clip_issues,
+            )
+            st.subheader("Cinematic Quality Gate")
+            st.progress(gate_result["score"] / 100)
+            st.metric("Readiness score", f'{gate_result["score"]}/100')
+            if gate_result["ready_to_publish"]:
+                st.success("READY — quality checks passed.")
+            else:
+                st.warning("REVIEW REQUIRED — review the issues before publishing.")
+            st.json(gate_result)
             st.download_button(
                 "Download export validation report",
                 report_path.read_bytes(),
