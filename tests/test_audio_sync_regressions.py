@@ -41,6 +41,18 @@ class AudioSyncRegressionTests(unittest.TestCase):
             self.assertLess(abs(float(data[0])),.01)
             self.assertLess(abs(float(data[-1])),.01)
 
+    def test_transition_cannot_equal_shortest_scene(self):
+        with tempfile.TemporaryDirectory() as td:
+            out=Path(td)/"mix.wav"
+            with self.assertRaisesRegex(ValueError, "shorter than every scene"):
+                mix_timeline([None,None],[.5,.5],out,sample_rate=8000,transition_seconds=.5)
+
+    def test_negative_transition_rejected(self):
+        with tempfile.TemporaryDirectory() as td:
+            out=Path(td)/"mix.wav"
+            with self.assertRaisesRegex(ValueError, "non-negative"):
+                mix_timeline([None],[1],out,sample_rate=8000,transition_seconds=-.1)
+
     def test_bilingual_tracks_that_overflow_scene_are_rejected(self):
         with tempfile.TemporaryDirectory() as td:
             en=Path(td)/"english.wav"; te=Path(td)/"telugu.wav"; out=Path(td)/"mix.wav"
