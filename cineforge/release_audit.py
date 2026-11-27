@@ -24,7 +24,9 @@ def audit_repo(root="."):
     missing_sources = [p for p in REQUIRED_SOURCE_FILES if not (root / p).exists()]
     missing = missing_sources + missing_tests
     return {
-        "status": "PASS" if not missing else "FAIL",
+        "status": "CHECKLIST_PRESENT" if not missing else "MISSING_FILES",
+        "release_verified": False,
+        "note": "This audit checks file presence only; it does not execute tests or certify exports.",
         "required_test_files": REQUIRED_TEST_FILES,
         "required_source_files": REQUIRED_SOURCE_FILES,
         "missing_test_files": missing_tests,
