@@ -16,6 +16,7 @@ from cineforge.checkpoint import save_checkpoint, load_checkpoint
 from cineforge.scene_review import review_scenes
 from cineforge.timeline import move_item, validate_timeline
 from cineforge.project_store import save_project, load_project, list_projects
+from cineforge.project_database import save_project_record, load_project_record, list_project_records
 from cineforge.preview import preview_rows, to_csv
 from cineforge.studio import scene_cards
 from cineforge.render_status import read_registry, set_scene_status
@@ -188,20 +189,22 @@ st.header("Timeline ordering")
 st.header("Project Library")
 project_dir = Path("projects")
 project_dir.mkdir(parents=True, exist_ok=True)
-project_files = list_projects(project_dir)
-if project_files:
-    selected_project = st.selectbox("Saved project", project_files, format_func=lambda p: p.stem)
-    if st.button("Load from library"):
+project_database_path = project_dir / "cineforge.sqlite3"
+project_records = list_project_records(project_database_path)
+if project_records:
+    selected_slug = st.selectbox("Saved project", [item["slug"] for item in project_records],
+                                 format_func=lambda slug: next(item["name"] for item in project_records if item["slug"] == slug))
+    if st.button("Load from project database"):
         try:
-            loaded = load_project(selected_project)
+            loaded = load_project_record(project_database_path, selected_slug)
             st.session_state["restored_project"] = loaded
             st.session_state["prompt"] = loaded.get("original_prompt", loaded.get("story_prompt", ""))
             st.session_state["character"] = loaded.get("character_continuity", "")
-            st.success("Project loaded into session. Refresh the page to rebuild the storyboard.")
+            st.rerun()
         except Exception as library_error:
-            st.error(f"Library load failed: {library_error}")
+            st.error(f"Project database load failed: {library_error}")
 else:
-    st.caption("No saved projects yet. Use Save to library below.")
+    st.caption("No database projects yet. Save the current storyboard to create one.")
 
 st.header("Restore a saved project")
 project_upload = st.file_uploader("Import CineForge project JSON", type=["json"], key="project_restore_upload")
@@ -353,12 +356,15 @@ script = export_script(story_prompt, style, character, scenes)
 script.update({"original_prompt": prompt, "scene_order": [scene.title for scene in scenes], "timeline": {"total_seconds": total, "fps": fps}, "cinematic_look": look, "output_profile": profile_name, "duration_preset": duration_choice, "target_dimensions": [profile["width"], profile["height"]]})
 st.download_button("Download subtitles (SRT)", create_srt(scenes, transition_seconds), file_name="cineforge_subtitles.srt", mime="text/plain")
 st.download_button("Save project JSON", json.dumps(script, indent=2), file_name="cineforge_project.json", mime="application/json")
-if st.button("Save to project library"):
+if st.button("Save to project database"):
     try:
-        save_project(script, project_dir / (prompt[:40].strip().replace(" ", "_") or "project") .replace("/", "_") + ".json")
-        st.success("Project saved to library.")
+        from cineforge.workspace import workspace_name
+        project_slug = workspace_name(workspace_label)
+        save_project_record(project_database_path, project_slug, workspace_label, script)
+        save_project(script, active_workspace / "cineforge_project.json")
+        st.success(f"Project saved to SQLite and workspace: {workspace_label}")
     except Exception as save_error:
-        st.error(f"Library save failed: {save_error}")
+        st.error(f"Project save failed: {save_error}")
 
 
 st.header("Export Presets")
