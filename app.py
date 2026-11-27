@@ -17,6 +17,7 @@ from cineforge.scene_review import review_scenes
 from cineforge.timeline import move_item, validate_timeline
 from cineforge.project_store import save_project, load_project, list_projects
 from cineforge.project_database import save_project_record, load_project_record, list_project_records
+from cineforge.project_state import apply_project_settings, project_settings_payload, reorder_scenes_by_titles
 from cineforge.preview import preview_rows, to_csv
 from cineforge.studio import scene_cards
 from cineforge.render_status import read_registry, set_scene_status
@@ -49,22 +50,22 @@ with st.sidebar:
     if st.button("Check ComfyUI connection"):
         diagnostic = check_server(server)
         (st.success if diagnostic["reachable"] else st.error)(format_queue(diagnostic))
-    prompt = st.text_area("Movie idea", st.session_state.get("prompt", "A traveler discovers a glowing hidden city deep in the mountains"), height=140)
-    character = st.text_area("Character continuity", st.session_state.get("character", "A traveler in a weathered dark-green cloak, leather backpack and boots; same appearance throughout"), height=90)
+    prompt = st.text_area("Movie idea", st.session_state.get("prompt", "A traveler discovers a glowing hidden city deep in the mountains"), height=140, key="prompt")
+    character = st.text_area("Character continuity", st.session_state.get("character", "A traveler in a weathered dark-green cloak, leather backpack and boots; same appearance throughout"), height=90, key="character")
     negative = st.text_area("Negative prompt", "blurry, flicker, distorted anatomy, text, watermark")
-    duration_choice = st.selectbox("Movie length", list(DURATIONS))
-    scene_count = st.slider("Number of scenes", 2, 6, 4)
-    style = st.selectbox("Visual style", ["cinematic photorealism", "stylized fantasy film", "science fiction cinema", "documentary cinematic", "animated feature-film look"])
-    profile_name = st.selectbox("Output format", list(PRESETS))
+    duration_choice = st.selectbox("Movie length", list(DURATIONS), key="duration_choice")
+    scene_count = st.slider("Number of scenes", 2, 6, 4, key="scene_count")
+    style = st.selectbox("Visual style", ["cinematic photorealism", "stylized fantasy film", "science fiction cinema", "documentary cinematic", "animated feature-film look"], key="visual_style")
+    profile_name = st.selectbox("Output format", list(PRESETS), key="output_profile")
     profile = get_preset(profile_name)
     st.caption(f"Target: {profile['width']} × {profile['height']} · {profile['fps']} FPS")
     workflow_file = st.file_uploader("ComfyUI API workflow JSON", type=["json"])
     music_file = st.file_uploader("Optional soundtrack WAV", type=["wav"])
-    music_volume = st.slider("Music volume", 0.0, 1.0, 0.18)
-    voice_volume = st.slider("Narration volume", 0.0, 1.0, 1.0)
-    look = st.selectbox("Color look preset", list(LOOK_PRESETS))
-    fade_seconds = st.slider("Fade duration (seconds)", 0.0, 2.0, 0.5, step=0.1)\n    transition_seconds = st.slider("Scene crossfade (seconds)", 0.0, 1.5, 0.5, step=0.1)
-    fps = st.slider("Final FPS", 12, 60, int(profile["fps"]))
+    music_volume = st.slider("Music volume", 0.0, 1.0, 0.18, key="music_volume")
+    voice_volume = st.slider("Narration volume", 0.0, 1.0, 1.0, key="voice_volume")
+    look = st.selectbox("Color look preset", list(LOOK_PRESETS), key="look")
+    fade_seconds = st.slider("Fade duration (seconds)", 0.0, 2.0, 0.5, step=0.1, key="fade_seconds")\n    transition_seconds = st.slider("Scene crossfade (seconds)", 0.0, 1.5, 0.5, step=0.1, key="transition_seconds")
+    fps = st.slider("Final FPS", 12, 60, int(profile["fps"]), key="fps")
 
 st.header("Project Workspace Isolation")
 from cineforge.project_workspace import initialize_workspace, read_manifest
@@ -197,9 +198,7 @@ if project_records:
     if st.button("Load from project database"):
         try:
             loaded = load_project_record(project_database_path, selected_slug)
-            st.session_state["restored_project"] = loaded
-            st.session_state["prompt"] = loaded.get("original_prompt", loaded.get("story_prompt", ""))
-            st.session_state["character"] = loaded.get("character_continuity", "")
+            apply_project_settings(st.session_state, loaded)
             st.rerun()
         except Exception as library_error:
             st.error(f"Project database load failed: {library_error}")
@@ -217,10 +216,8 @@ if project_upload is not None:
         else:
             st.write(f"Project contains {len(restored_scenes)} scene(s).")
             if st.button("Apply imported project settings"):
-                st.session_state["prompt"] = restored.get("original_prompt", restored.get("story_prompt", ""))
-                st.session_state["character"] = restored.get("character_continuity", "")
-                st.session_state["restored_project"] = restored
-                st.success("Imported project data saved in session. Reloading the storyboard from restored scenes is not yet fully implemented.")
+                apply_project_settings(st.session_state, restored)
+                st.rerun()
     except Exception as restore_error:
         st.error(f"Project import failed: {restore_error}")
 
@@ -240,6 +237,8 @@ if st.session_state.get("restored_project"):
                     narration=str(item.get("narration", ""))[:5000],
                     camera=item.get("camera", "Tracking shot") if item.get("camera") in CAMERA_PRESETS else "Tracking shot"))
             scenes = restored_scene_objects
+            scenes = reorder_scenes_by_titles(scenes, restored_project.get("scene_order", []))
+            st.session_state["scene_order"] = list(range(len(scenes)))
             st.info("Imported storyboard scenes restored for this session.")
     except (ValueError, TypeError, KeyError) as import_apply_error:
         st.warning(f"Could not restore scenes: {import_apply_error}")
@@ -354,6 +353,7 @@ for i, scene in enumerate(scenes, 1):
 
 script = export_script(story_prompt, style, character, scenes)
 script.update({"original_prompt": prompt, "scene_order": [scene.title for scene in scenes], "timeline": {"total_seconds": total, "fps": fps}, "cinematic_look": look, "output_profile": profile_name, "duration_preset": duration_choice, "target_dimensions": [profile["width"], profile["height"]]})
+script["cineforge_settings"] = project_settings_payload({"negative_prompt": negative, "duration_choice": duration_choice, "scene_count": scene_count, "visual_style": style, "output_profile": profile_name, "music_volume": music_volume, "voice_volume": voice_volume, "look": look, "fade_seconds": fade_seconds, "transition_seconds": transition_seconds, "fps": fps, "voice_mode": voice_mode, "voice_profile": voice_profile, "workspace_label": workspace_label})
 st.download_button("Download subtitles (SRT)", create_srt(scenes, transition_seconds), file_name="cineforge_subtitles.srt", mime="text/plain")
 st.download_button("Save project JSON", json.dumps(script, indent=2), file_name="cineforge_project.json", mime="application/json")
 if st.button("Save to project database"):
