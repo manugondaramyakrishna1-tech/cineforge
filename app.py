@@ -21,6 +21,7 @@ from cineforge.studio import scene_cards
 from cineforge.render_status import read_registry, set_scene_status
 from cineforge.replacements import record_replacement, apply_replacements
 from cineforge.assembly_checks import validate_clips, assembly_summary, validate_final_video
+from cineforge.export_report import build_report, save_report, report_markdown
 from cineforge.voice_studio import VOICE_PROFILES, narration_text
 from cineforge.sound_studio import validate_audio_tracks, mix_settings
 from cineforge.export_presets import PRESETS, get_preset
