@@ -30,8 +30,6 @@ class ReliabilityTests(unittest.TestCase):
 
 
 import ast
-import unittest
-from pathlib import Path
 
 from cineforge.timeline import move_item, validate_timeline
 from cineforge.export_presets import PRESETS, get_preset
