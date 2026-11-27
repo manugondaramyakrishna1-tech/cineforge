@@ -49,10 +49,19 @@ with st.expander("Startup diagnostics"):
     st.json(run_checks())
 
 with st.sidebar:
-    server = st.text_input("ComfyUI server URL", "http://127.0.0.1:8188")
+    st.subheader("Optional AI generation service")
+    server = st.text_input("ComfyUI server URL (optional)", "", help="Leave blank to use CineForge without ComfyUI. Connect a running ComfyUI server only when you want AI scene generation.")
     if st.button("Check ComfyUI connection"):
-        diagnostic = check_server(server)
-        (st.success if diagnostic["reachable"] else st.error)(format_queue(diagnostic))
+        if not server.strip():
+            st.info("ComfyUI is not configured. CineForge project, storyboard, timeline, audio and export-review tools remain available.")
+        else:
+            diagnostic = check_server(server.strip())
+            if diagnostic["reachable"]:
+                st.success(format_queue(diagnostic))
+            else:
+                st.warning("ComfyUI is not reachable. You can continue using CineForge's non-generation features. " + format_queue(diagnostic))
+    if not server.strip():
+        st.caption("ComfyUI: Not configured · Optional")
     prompt = st.text_area("Movie idea", st.session_state.get("prompt", "A traveler discovers a glowing hidden city deep in the mountains"), height=140, key="prompt")
     character = st.text_area("Character continuity", st.session_state.get("character", "A traveler in a weathered dark-green cloak, leather backpack and boots; same appearance throughout"), height=90, key="character")
     negative = st.text_area("Negative prompt", "blurry, flicker, distorted anatomy, text, watermark")
@@ -662,6 +671,6 @@ if workflow_file:
         except Exception as exc:
             st.error(f"Movie pipeline failed: {exc}")
 else:
-    st.info("Upload a compatible ComfyUI API workflow JSON to enable generation.")
+    st.info("AI scene generation is optional and requires a running ComfyUI server plus a compatible API workflow JSON. You can still use the storyboard, project library, timeline, scene review, narration tools and asset management without ComfyUI.")
 
-st.caption("PyAV may use FFmpeg libraries internally, but CineForge does not invoke the FFmpeg executable. Full pipeline still needs testing against a configured ComfyUI instance.")
+st.caption("ComfyUI is optional. PyAV may use FFmpeg libraries internally, but CineForge does not invoke the FFmpeg executable. Full AI generation requires a configured ComfyUI instance.")
