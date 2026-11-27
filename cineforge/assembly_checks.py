@@ -78,7 +78,9 @@ def validate_final_video(path, expected_width, expected_height, expected_fps,
         video_frames = 0
         audio_frames = 0
         audio_duration = None
-        if audio is not None and audio.duration is not None and audio.time_base is not None:\n            audio_duration = float(audio.duration * audio.time_base)\n        audio_square_sum = 0.0
+        if audio is not None and audio.duration is not None and audio.time_base is not None:
+            audio_duration = float(audio.duration * audio.time_base)
+        audio_square_sum = 0.0
         audio_sample_count = 0
         for packet in container.demux():
             if packet.dts is None:
@@ -102,12 +104,20 @@ def validate_final_video(path, expected_width, expected_height, expected_fps,
         if require_audio and audio_frames == 0:
             raise ValueError("Final MP4 audio stream contains no decodable audio frames.")
         audio_rms = (audio_square_sum / audio_sample_count) ** 0.5 if audio_sample_count else 0.0
-        audio_silent = audio_sample_count > 0 and audio_rms < 1e-5\n        audio_duration_delta = (abs(audio_duration - duration) if audio_duration is not None else None)\n        duration_tolerance = max(0.5, 2.0 / max(float(expected_fps), 1.0))\n        if require_audio and audio_duration_delta is not None and audio_duration_delta > duration_tolerance:\n            raise ValueError(\n                f"Audio/video duration mismatch: audio {audio_duration:.2f}s, video {duration:.2f}s."\n            )
+        audio_silent = audio_sample_count > 0 and audio_rms < 1e-5
+        audio_duration_delta = (abs(audio_duration - duration) if audio_duration is not None else None)
+        duration_tolerance = max(0.5, 2.0 / max(float(expected_fps), 1.0))
+        if require_audio and audio_duration_delta is not None and audio_duration_delta > duration_tolerance:
+            raise ValueError(
+                f"Audio/video duration mismatch: audio {audio_duration:.2f}s, video {duration:.2f}s."
+            )
 
     return {
         "valid": True,
         "audio_rms": round(audio_rms, 8),
-        "audio_silent": audio_silent,\n        "audio_duration_seconds": round(audio_duration, 3) if audio_duration is not None else None,\n        "audio_video_duration_delta_seconds": round(audio_duration_delta, 3) if audio_duration_delta is not None else None,
+        "audio_silent": audio_silent,
+        "audio_duration_seconds": round(audio_duration, 3) if audio_duration is not None else None,
+        "audio_video_duration_delta_seconds": round(audio_duration_delta, 3) if audio_duration_delta is not None else None,
         "file_size_bytes": path.stat().st_size,
         "width": int(expected_width),
         "height": int(expected_height),
