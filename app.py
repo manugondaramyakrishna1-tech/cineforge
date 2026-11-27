@@ -273,14 +273,15 @@ with st.expander("Scene image review report", expanded=False):
         st.info("No saved scene images found. This checks image files, not video frames or semantic continuity.")
 
 st.header("Project Workspace Isolation")
-from cineforge.workspace import workspace_name, workspace_path
+from cineforge.project_workspace import initialize_workspace, read_manifest
 workspace_root = Path("projects/workspaces")
 workspace_root.mkdir(parents=True, exist_ok=True)
 workspace_label = st.text_input("Workspace name", prompt[:40] or "project", key="workspace_label")
-workspace_safe_name = workspace_name(workspace_label)
-active_workspace = workspace_path(workspace_root, workspace_safe_name)
-st.caption(f"Workspace folder: {active_workspace}")
-st.info("Workspace directory helpers are available. Existing render/export pipeline paths are not yet fully migrated into isolated workspaces.")
+active_workspace = initialize_workspace(workspace_root, workspace_label)
+workspace_manifest = read_manifest(active_workspace)
+st.caption(f"Active workspace: {active_workspace}")
+st.json(workspace_manifest)
+st.info("Project folder layout and manifest are initialized. Render pipeline migration is still pending.")
 st.header("Smart Scene Asset Manager")
 from cineforge.asset_manager import scan_assets, summarize_assets
 asset_root = Path("outputs")
