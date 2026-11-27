@@ -27,7 +27,8 @@ def make_clip(path, value, frames=8, fps=8):
 
 def make_audio(path, seconds=2, rate=8000):
     samples = np.zeros((1, seconds * rate), dtype=np.float32)
-    pcm = (samples * 32767).astype(np.int16)\n    frame = av.AudioFrame.from_ndarray(pcm, format="s16", layout="mono")
+    pcm = (samples * 32767).astype(np.int16)
+    frame = av.AudioFrame.from_ndarray(pcm, format="s16", layout="mono")
     frame.sample_rate = rate
     with av.open(str(path), "w") as container:
         stream = container.add_stream("pcm_s16le", rate=rate)
