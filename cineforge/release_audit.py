@@ -2,7 +2,7 @@
 from pathlib import Path
 import json
 
-REQUIRED_TEST_FILES = [
+REQUIRED_SOURCE_FILES = [\n    "cineforge/assembly.py",\n    "cineforge/assembly_checks.py",\n    "cineforge/audio_mix.py",\n    "cineforge/transitions.py",\n    "cineforge/export_report.py",\n]\n\nREQUIRED_TEST_FILES = [
     "tests/test_transitions.py",
     "tests/test_audio_sync_regressions.py",
     "tests/test_pyav_export_integration.py",
