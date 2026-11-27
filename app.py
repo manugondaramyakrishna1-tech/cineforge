@@ -22,6 +22,7 @@ from cineforge.preview import preview_rows, to_csv
 from cineforge.studio import scene_cards
 from cineforge.render_status import read_registry, set_scene_status
 from cineforge.replacements import record_replacement, apply_replacements
+from cineforge.scene_assets import register_scene_asset, set_active_scene_video, resolve_scene_videos, scene_asset_inventory
 from cineforge.assembly_checks import validate_clips, assembly_summary, validate_final_video
 from cineforge.export_report import build_report, save_report, report_markdown
 from cineforge.voice_studio import VOICE_PROFILES, narration_text
@@ -308,6 +309,31 @@ with st.expander("Asset inventory", expanded=False):
         st.download_button("Download asset inventory JSON", inventory_json, file_name="cineforge_asset_inventory.json", mime="application/json")
     else:
         st.info("No recognized assets found under outputs yet.")
+st.header("Scene Asset Links & Replacement History")
+scene_asset_manifest = workspace_reports / "scene_assets.json"
+scene_asset_rows = scene_asset_inventory(scene_asset_manifest)
+if scene_asset_rows:
+    st.dataframe(scene_asset_rows, use_container_width=True)
+else:
+    st.caption("No scene-specific assets registered yet.")
+with st.expander("Link an existing workspace asset to a scene"):
+    link_scene_number = st.number_input("Scene number", min_value=1, max_value=max(1, len(scenes)), value=1, step=1, key="link_scene_number")
+    linkable_assets = [item for item in asset_inventory if item["type"] in {"image", "video", "audio"}]
+    if linkable_assets:
+        linkable_paths = [item["path"] for item in linkable_assets]
+        selected_link_path = st.selectbox("Asset file", linkable_paths, key="selected_scene_asset")
+        selected_link_type = next(item["type"] for item in linkable_assets if item["path"] == selected_link_path)
+        activate_linked_video = st.checkbox("Set as active scene video", value=selected_link_type == "video", key="activate_linked_scene_video")
+        if st.button("Register scene asset", key="register_scene_asset_button"):
+            try:
+                register_scene_asset(scene_asset_manifest, int(link_scene_number), selected_link_path, selected_link_type, activate=activate_linked_video)
+                st.success("Scene asset registered.")
+                st.rerun()
+            except Exception as link_error:
+                st.error(f"Asset registration failed: {link_error}")
+    else:
+        st.info("Place an image, video or audio file in this project's workspace first.")
+
 st.header("Scene Gallery — saved renders")
 gallery_dir = workspace_renders
 saved_scene_files = sorted(gallery_dir.glob("final_scene_*/*")) if gallery_dir.exists() else []
@@ -388,7 +414,7 @@ preview_candidates = [p for p in preview_candidates if p.is_file() and p.suffix.
 if preview_candidates:
     if st.button("Assemble visual preview from available scenes"):
         try:
-            preview_ordered = apply_replacements(preview_candidates, workspace_reports / "replacements.json")
+            preview_ordered = resolve_scene_videos(scene_asset_manifest, apply_replacements(preview_candidates, workspace_reports / "replacements.json"))
             preview_file = assemble(preview_ordered, workspace_exports / "cineforge_preview.mp4", fps, fade_seconds=fade_seconds)
             st.success("Preview assembled.")
             st.video(str(preview_file))
@@ -416,10 +442,17 @@ if workflow_file:
                 regen_clips = regen_engine.download_videos(regen_outputs, workspace_renders / f"scene_{scene_choice}_replacement_preview")
                 if regen_clips:
                     st.success("Replacement preview rendered.")
-                    st.info("Replacement previews are saved separately; you can mark a preview for use in the final timeline.")
+                    st.info("Choose a replacement to activate it for this scene's final assembly.")
                     for replacement in regen_clips:
                         st.video(str(replacement))
                         st.download_button("Download replacement clip", replacement.read_bytes(), file_name=replacement.name, key=f"regen_download_{replacement.name}")
+                        if st.button(f"Use this clip for Scene {scene_choice}", key=f"activate_scene_{scene_choice}_{replacement.name}"):
+                            try:
+                                register_scene_asset(scene_asset_manifest, scene_choice, replacement, "video", activate=True)
+                                st.success("Replacement registered and selected as active.")
+                                st.rerun()
+                            except Exception as activation_error:
+                                st.error(f"Could not activate replacement: {activation_error}")
                 else:
                     st.error("No video output was found for the replacement preview.")
     except Exception as regen_exc:
@@ -456,7 +489,7 @@ if workflow_file:
                 if i in completed:
                     progress.progress(min(1.0, len(completed) / len(scenes)))
                     continue
-                set_scene_status(Path("outputs/render_status.json"), i, "rendering", scene.title)
+                set_scene_status(workspace_reports / "render_status.json", i, "rendering", scene.title)
                 status.info(f"Rendering scene {i}/{len(scenes)}: {scene.title}")
                 scene_prompt = scene.prompt + " Camera direction: " + CAMERA_PRESETS[scene.camera] + f". Color look: {LOOK_PRESETS[look]}. Target format: {profile_name}, {profile['width']}x{profile['height']}."
                 wf = ComfyUI.replace_placeholders(workflow, {"__PROMPT__": scene_prompt, "__NEGATIVE__": negative})
@@ -466,7 +499,7 @@ if workflow_file:
                 if not videos:
                     raise RuntimeError(f"No video output detected for scene {i}.")
                 clips.extend(videos)
-                set_scene_status(Path("outputs/render_status.json"), i, "complete", scene.title)
+                set_scene_status(workspace_reports / "render_status.json", i, "complete", scene.title)
                 completed.append(i)
                 progress.progress(i / len(scenes))
                 save_checkpoint(checkpoint_path, story_prompt, scenes, completed, clips)
@@ -499,7 +532,7 @@ if workflow_file:
                 music_path.write_bytes(music_file.getvalue())
             mixed = mix_timeline(voices, [scene.seconds for scene in scenes], audio_dir / "movie_mix.wav", music_path, music_volume, voice_volume, fade_seconds=sound_fade, transition_seconds=transition_seconds)
             status.info("Assembling and muxing...")
-            clips = apply_replacements(clips, Path("outputs/replacements.json"))
+            clips = resolve_scene_videos(scene_asset_manifest, apply_replacements(clips, workspace_reports / "replacements.json"))
             valid_clips, clip_issues = validate_clips(clips)
             for issue in clip_issues:
                 st.warning(issue)
