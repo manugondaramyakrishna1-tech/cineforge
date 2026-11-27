@@ -81,6 +81,24 @@ if DURATIONS.get(duration_choice):
     for scene in scenes:
         scene.seconds = min(20, per_scene)
 
+if "scene_order" not in st.session_state or len(st.session_state.scene_order) != len(scenes):
+    st.session_state.scene_order = list(range(len(scenes)))
+order = st.session_state.scene_order
+order_cols = st.columns([3,1,1])
+for position, scene_index in enumerate(order):
+    scene = scenes[scene_index]
+    cols = st.columns([3,1,1])
+    cols[0].write(f"{position+1}. {scene.title} · {scene.seconds}s")
+    if cols[1].button("↑", key=f"up_{position}", disabled=position==0):
+        st.session_state.scene_order = move_item(order, position, -1); st.rerun()
+    if cols[2].button("↓", key=f"down_{position}", disabled=position==len(order)-1):
+        st.session_state.scene_order = move_item(order, position, 1); st.rerun()
+scenes = [scenes[index] for index in st.session_state.scene_order]
+try:
+    st.metric("Ordered timeline duration", f"{validate_timeline([{'seconds': scene.seconds} for scene in scenes])} seconds")
+except Exception as timeline_error:
+    st.warning(str(timeline_error))
+
 st.header("Visual Storyboard Preview")
 storyboard_rows = preview_rows(scenes)
 storyboard_columns = st.columns(2)
@@ -138,23 +156,7 @@ if st.button("Generate bilingual voice previews"):
     except Exception as e:
         st.error(f"Preview generation failed: {e}")
 st.header("Timeline ordering")
-if "scene_order" not in st.session_state or len(st.session_state.scene_order) != len(scenes):
-    st.session_state.scene_order = list(range(len(scenes)))
-order = st.session_state.scene_order
-order_cols = st.columns([3,1,1])
-for position, scene_index in enumerate(order):
-    scene = scenes[scene_index]
-    cols = st.columns([3,1,1])
-    cols[0].write(f"{position+1}. {scene.title} · {scene.seconds}s")
-    if cols[1].button("↑", key=f"up_{position}", disabled=position==0):
-        st.session_state.scene_order = move_item(order, position, -1); st.rerun()
-    if cols[2].button("↓", key=f"down_{position}", disabled=position==len(order)-1):
-        st.session_state.scene_order = move_item(order, position, 1); st.rerun()
-scenes = [scenes[index] for index in st.session_state.scene_order]
-try:
-    st.metric("Ordered timeline duration", f"{validate_timeline([{'seconds': scene.seconds} for scene in scenes])} seconds")
-except Exception as timeline_error:
-    st.warning(str(timeline_error))
+
 
 
 st.header("Project Library")
