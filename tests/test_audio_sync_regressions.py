@@ -41,6 +41,13 @@ class AudioSyncRegressionTests(unittest.TestCase):
             self.assertLess(abs(float(data[0])),.01)
             self.assertLess(abs(float(data[-1])),.01)
 
+    def test_bilingual_tracks_that_overflow_scene_are_rejected(self):
+        with tempfile.TemporaryDirectory() as td:
+            en=Path(td)/"english.wav"; te=Path(td)/"telugu.wav"; out=Path(td)/"mix.wav"
+            write_audio(en,.4); write_audio(te,.4)
+            with self.assertRaisesRegex(ValueError, "exceeds its 1-second duration"):
+                mix_timeline([[en,te]],[1],out,sample_rate=8000)
+
     def test_missing_narration_file_is_silent_not_crash(self):
         with tempfile.TemporaryDirectory() as td:
             out=Path(td)/"mix.wav"
