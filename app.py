@@ -66,7 +66,8 @@ with st.sidebar:
     music_volume = st.slider("Music volume", 0.0, 1.0, 0.18, key="music_volume")
     voice_volume = st.slider("Narration volume", 0.0, 1.0, 1.0, key="voice_volume")
     look = st.selectbox("Color look preset", list(LOOK_PRESETS), key="look")
-    fade_seconds = st.slider("Fade duration (seconds)", 0.0, 2.0, 0.5, step=0.1, key="fade_seconds")\n    transition_seconds = st.slider("Scene crossfade (seconds)", 0.0, 1.5, 0.5, step=0.1, key="transition_seconds")
+    fade_seconds = st.slider("Fade duration (seconds)", 0.0, 2.0, 0.5, step=0.1, key="fade_seconds")
+    transition_seconds = st.slider("Scene crossfade (seconds)", 0.0, 1.5, 0.5, step=0.1, key="transition_seconds")
     fps = st.slider("Final FPS", 12, 60, int(profile["fps"]), key="fps")
 
 st.header("Project Workspace Isolation")
@@ -401,8 +402,8 @@ preview_data = preview_rows(scenes)
 st.download_button("Download timeline CSV", to_csv(preview_data), file_name="cineforge_timeline.csv", mime="text/csv")
 with st.expander("Scene preview details"):
     for row in preview_data:
-        st.markdown(f"**{row[\"number\"]}. {row[\"title\"]}** · {row[\"start\"]}–{row[\"end\"]} seconds")
-        st.caption(f"Camera: {row[\"camera\"]}")
+        st.markdown(f"**{row['number']}. {row['title']}** · {row['start']}–{row['end']} seconds")
+        st.caption(f"Camera: {row['camera']}")
         st.write(row["prompt"])
         if row["narration"]:
             st.caption("Narration: " + row["narration"])
@@ -433,7 +434,7 @@ st.header("Export Presets")
 export_preset_name = st.selectbox("Export format", list(PRESETS.keys()), key="export_preset")
 export_config = get_preset(export_preset_name)
 color_grade = st.selectbox("Final cinematic color grade", ["none", "cinematic", "warm", "cool"], index=1, key="final_color_grade")
-st.caption(f"Resolution: {export_config[\"width\"]} × {export_config[\"height\"]} · {export_config[\"fps\"]} FPS · {export_config[\"format\"].upper()}")
+st.caption(f"Resolution: {export_config['width']} × {export_config['height']} · {export_config['fps']} FPS · {export_config['format'].upper()}")
 st.success("The selected export dimensions are applied during final MP4 assembly.")
 
 st.header("Sound Studio")
