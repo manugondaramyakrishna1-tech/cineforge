@@ -72,5 +72,6 @@ class CoreTests(unittest.TestCase):
                 ast.parse(source.read_text(encoding="utf-8"), filename=str(source))
 
 
-\nif __name__ == "__main__":
+
+if __name__ == "__main__":
     unittest.main()
