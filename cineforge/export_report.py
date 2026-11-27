@@ -31,6 +31,8 @@ def report_markdown(report):
            f"- Decoded video frames: {v.get('video_frames_decoded','?')}",
            f"- Decoded audio frames: {v.get('audio_frames_decoded','?')}",
            f"- Audio present: {v.get('audio_present','?')}",
+           f"- Audio RMS: {v.get('audio_rms','?')}",
+           f"- Audio silent: {v.get('audio_silent','?')}",
            f"- File size: {v.get('file_size_bytes','?')} bytes","",
            "## Warnings",""]
     lines += ["- "+str(w) for w in report.get("warnings",[])] or ["- None"]
