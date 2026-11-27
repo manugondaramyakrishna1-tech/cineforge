@@ -76,6 +76,18 @@ with st.expander("Intelligent Scene Director", expanded=False):
     st.json(scene_plan_report)
     for scene_index, directed_scene in enumerate(scenes, 1):
         st.caption(f"Scene {scene_index}: {directed_scene.camera} — {directed_scene.title}")
+st.header("Visual Storyboard Preview")
+storyboard_rows = preview_rows(scenes)
+storyboard_columns = st.columns(2)
+for storyboard_index, storyboard_scene in enumerate(scenes):
+    with storyboard_columns[storyboard_index % 2]:
+        with st.container(border=True):
+            st.markdown(f"### Scene {storyboard_index + 1}: {storyboard_scene.title}")
+            st.caption(f"🎥 {storyboard_scene.camera} · ⏱ {storyboard_scene.seconds}s")
+            st.text_area("Scene prompt", storyboard_scene.prompt, key=f"storyboard_prompt_{storyboard_index}")
+            st.text_area("Narration", storyboard_scene.narration, key=f"storyboard_narration_{storyboard_index}")
+            st.caption(f"Timeline: {storyboard_rows[storyboard_index]['start']}s – {storyboard_rows[storyboard_index]['end']}s")
+st.download_button("Download storyboard CSV", to_csv(storyboard_rows), file_name="cineforge_storyboard.csv", mime="text/csv")
 if DURATIONS.get(duration_choice):
     per_scene = max(2, int(DURATIONS[duration_choice] / len(scenes)))
     for scene in scenes:
