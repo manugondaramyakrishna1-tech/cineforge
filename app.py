@@ -255,6 +255,23 @@ for i, scene in enumerate(scenes, 1):
         scene.narration = st.text_area("Narration", scene.narration, key=f"narr{i}")
 
 
+st.header("AI Scene Image Review — technical checks")
+from cineforge.image_review import review_image_folder
+image_review_report = review_image_folder(gallery_dir)
+with st.expander("Scene image review report", expanded=False):
+    st.metric("Images found", image_review_report["image_count"])
+    st.metric("Review flags", image_review_report["issue_count"])
+    for image_result in image_review_report["results"]:
+        st.caption(image_result["path"])
+        if image_result["valid"]:
+            st.write(f'{image_result["width"]} × {image_result["height"]} · brightness {image_result["brightness"]} · contrast {image_result["contrast"]}')
+        for image_issue in image_result["issues"]:
+            st.warning(image_issue)
+        if image_result["valid"] and not image_result["issues"]:
+            st.success("No technical image flags.")
+    if not image_review_report["image_count"]:
+        st.info("No saved scene images found. This checks image files, not video frames or semantic continuity.")
+
 st.header("Scene Gallery — saved renders")
 gallery_dir = Path("outputs")
 saved_scene_files = sorted(gallery_dir.glob("final_scene_*/*")) if gallery_dir.exists() else []
