@@ -24,6 +24,7 @@ from cineforge.studio import scene_cards
 from cineforge.render_status import read_registry, set_scene_status
 from cineforge.replacements import record_replacement, apply_replacements
 from cineforge.scene_assets import register_scene_asset, set_active_scene_video, resolve_scene_videos, scene_asset_inventory
+from cineforge.scene_recovery import SceneRecoveryStore
 from cineforge.assembly_checks import validate_clips, assembly_summary, validate_final_video
 from cineforge.export_report import build_report, save_report, report_markdown
 from cineforge.voice_studio import VOICE_PROFILES, narration_text
@@ -522,19 +523,30 @@ if workflow_file:
                         status.info(f"Resuming checkpoint: {len(completed)} scene(s) already saved.")
                 except Exception:
                     completed, clips = [], []
+            recovery_store = SceneRecoveryStore(workspace_reports / "scene_recovery.json")
             for i, scene in enumerate(scenes, 1):
                 if i in completed:
+                    if recovery_store.get_scene(i).get("status") != "complete":
+                        recovery_store.record(i, "complete")
                     progress.progress(min(1.0, len(completed) / len(scenes)))
                     continue
-                set_scene_status(workspace_reports / "render_status.json", i, "rendering", scene.title)
-                status.info(f"Rendering scene {i}/{len(scenes)}: {scene.title}")
                 scene_prompt = scene.prompt + " Camera direction: " + CAMERA_PRESETS[scene.camera] + f". Color look: {LOOK_PRESETS[look]}. Target format: {profile_name}, {profile['width']}x{profile['height']}."
                 wf = ComfyUI.replace_placeholders(workflow, {"__PROMPT__": scene_prompt, "__NEGATIVE__": negative})
-                pid = engine.submit(wf)
-                outputs = engine.wait_for_outputs(pid, status)
-                videos = engine.download_videos(outputs, workspace_renders / f"final_scene_{i}")
-                if not videos:
-                    raise RuntimeError(f"No video output detected for scene {i}.")
+
+                def render_scene():
+                    set_scene_status(workspace_reports / "render_status.json", i, "rendering", scene.title)
+                    status.info(f"Rendering scene {i}/{len(scenes)}: {scene.title}")
+                    pid = engine.submit(wf)
+                    outputs = engine.wait_for_outputs(pid, status)
+                    videos = engine.download_videos(outputs, workspace_renders / f"final_scene_{i}")
+                    if not videos:
+                        raise RuntimeError(f"No video output detected for scene {i}.")
+                    return videos
+
+                def show_retry_attempt(attempt, maximum):
+                    status.info(f"Rendering scene {i}/{len(scenes)} — attempt {attempt}/{maximum}")
+
+                videos = recovery_store.run_with_retry(i, render_scene, max_attempts=3, delay_seconds=2, on_attempt=show_retry_attempt)
                 clips.extend(videos)
                 set_scene_status(workspace_reports / "render_status.json", i, "complete", scene.title)
                 completed.append(i)
