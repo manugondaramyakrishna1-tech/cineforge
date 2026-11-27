@@ -32,9 +32,9 @@ class PyAVExportIntegrationTests(unittest.TestCase):
             for packet in stream.encode():
                 container.mux(packet)
 
-    def _make_audio(self, path, seconds=1.0, rate=16000):
+    def _make_audio(self, path, seconds=1.0, rate=16000, amplitude=0):
         import wave
-        samples = np.zeros(int(seconds * rate), dtype=np.int16)
+        samples = np.full(int(seconds * rate), amplitude, dtype=np.int16)
         with wave.open(str(path), "wb") as wav:
             wav.setnchannels(1)
             wav.setsampwidth(2)
@@ -51,6 +51,30 @@ class PyAVExportIntegrationTests(unittest.TestCase):
             self.assertTrue(result["valid"])
             self.assertGreater(result["video_frames_decoded"], 0)
             self.assertGreater(result["file_size_bytes"], 0)
+
+    def test_audio_validator_reports_silent_track(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "source.mp4"
+            audio = Path(tmp) / "audio.wav"
+            output = Path(tmp) / "final.mp4"
+            self._make_video(source, (80, 100, 160))
+            self._make_audio(audio, seconds=1.0, amplitude=0)
+            assemble([source], output, fps=12, audio_path=audio)
+            result = validate_final_video(output, 64, 64, 12, require_audio=True)
+            self.assertTrue(result["audio_silent"])
+            self.assertEqual(result["audio_rms"], 0.0)
+
+    def test_audio_validator_reports_signal(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "source.mp4"
+            audio = Path(tmp) / "audio.wav"
+            output = Path(tmp) / "final.mp4"
+            self._make_video(source, (80, 100, 160))
+            self._make_audio(audio, seconds=1.0, amplitude=6000)
+            assemble([source], output, fps=12, audio_path=audio)
+            result = validate_final_video(output, 64, 64, 12, require_audio=True)
+            self.assertFalse(result["audio_silent"])
+            self.assertGreater(result["audio_rms"], 0.01)
 
     def test_audio_mux_export_decodes(self):
         with tempfile.TemporaryDirectory() as tmp:
