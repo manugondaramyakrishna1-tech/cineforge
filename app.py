@@ -71,6 +71,14 @@ story_prompt = st.session_state.get("expanded_prompt", prompt)
 scenes = plan(story_prompt, scene_count, style, character)
 from cineforge.director import analyze_scene_plan
 scene_plan_report = analyze_scene_plan(scenes)
+from cineforge.continuity import analyze_continuity
+continuity_report = analyze_continuity(scenes, character, style)
+with st.expander("Story Continuity Check", expanded=False):
+    if continuity_report["issues"]:
+        st.warning("Continuity prompt checks found items to review.")
+    else:
+        st.success("Continuity prompt checks passed.")
+    st.json(continuity_report)
 with st.expander("Intelligent Scene Director", expanded=False):
     st.metric("Shot diversity", f'{scene_plan_report["distinct_camera_count"]}/{scene_plan_report["scene_count"]}')
     st.json(scene_plan_report)
