@@ -1,5 +1,6 @@
 """Assembly validation and metadata helpers."""
 from pathlib import Path
+import numpy as np
 
 
 def validate_clips(clips):
@@ -76,6 +77,8 @@ def validate_final_video(path, expected_width, expected_height, expected_fps,
 
         video_frames = 0
         audio_frames = 0
+        audio_square_sum = 0.0
+        audio_sample_count = 0
         for packet in container.demux():
             if packet.dts is None:
                 continue
@@ -84,13 +87,26 @@ def validate_final_video(path, expected_width, expected_height, expected_fps,
                     video_frames += 1
                 elif packet.stream.type == "audio":
                     audio_frames += 1
+                    samples = decoded.to_ndarray()
+                    if samples.size:
+                        if np.issubdtype(samples.dtype, np.integer):
+                            scale = float(max(abs(np.iinfo(samples.dtype).min), np.iinfo(samples.dtype).max))
+                            samples = samples.astype(np.float64) / scale
+                        else:
+                            samples = samples.astype(np.float64)
+                        audio_square_sum += float(np.sum(samples * samples))
+                        audio_sample_count += int(samples.size)
         if video_frames == 0:
             raise ValueError("Final MP4 contains no decodable video frames.")
         if require_audio and audio_frames == 0:
             raise ValueError("Final MP4 audio stream contains no decodable audio frames.")
+        audio_rms = (audio_square_sum / audio_sample_count) ** 0.5 if audio_sample_count else 0.0
+        audio_silent = audio_sample_count > 0 and audio_rms < 1e-5
 
     return {
         "valid": True,
+        "audio_rms": round(audio_rms, 8),
+        "audio_silent": audio_silent,
         "file_size_bytes": path.stat().st_size,
         "width": int(expected_width),
         "height": int(expected_height),
