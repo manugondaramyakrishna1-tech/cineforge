@@ -272,6 +272,22 @@ with st.expander("Scene image review report", expanded=False):
     if not image_review_report["image_count"]:
         st.info("No saved scene images found. This checks image files, not video frames or semantic continuity.")
 
+st.header("Smart Scene Asset Manager")
+from cineforge.asset_manager import scan_assets, summarize_assets
+asset_root = Path("outputs")
+asset_inventory = scan_assets(asset_root)
+asset_summary = summarize_assets(asset_inventory)
+asset_cols = st.columns(5)
+asset_cols[0].metric("Total assets", asset_summary["total"])
+for col, asset_kind in zip(asset_cols[1:], ["image", "video", "audio", "project"]):
+    col.metric(asset_kind.title(), asset_summary["by_type"].get(asset_kind, 0))
+with st.expander("Asset inventory", expanded=False):
+    if asset_inventory:
+        st.dataframe(asset_inventory, use_container_width=True)
+        inventory_json = json.dumps(asset_inventory, indent=2)
+        st.download_button("Download asset inventory JSON", inventory_json, file_name="cineforge_asset_inventory.json", mime="application/json")
+    else:
+        st.info("No recognized assets found under outputs yet.")
 st.header("Scene Gallery — saved renders")
 gallery_dir = Path("outputs")
 saved_scene_files = sorted(gallery_dir.glob("final_scene_*/*")) if gallery_dir.exists() else []
