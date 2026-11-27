@@ -430,6 +430,24 @@ if workflow_file:
             else:
                 st.success("Final MP4 passed structural validation with a non-silent audio signal.")
             st.json(validation)
+            try:
+                from cineforge.audio_quality import analyze_audio
+                audio_quality = analyze_audio(mixed)
+                st.subheader("Audio Quality Report")
+                q1, q2, q3, q4 = st.columns(4)
+                q1.metric("Peak", audio_quality["peak"])
+                q2.metric("RMS", audio_quality["rms"])
+                q3.metric("Clipped samples", audio_quality["clipped_sample_count"])
+                q4.metric("Quiet samples", f'{audio_quality["quiet_sample_ratio"]:.1%}')
+                if audio_quality["clipping_detected"]:
+                    st.warning("Clipping detected in the mixed audio.")
+                if audio_quality["mostly_silent"]:
+                    st.warning("Audio is mostly silent or very quiet.")
+                if not audio_quality["clipping_detected"] and not audio_quality["mostly_silent"]:
+                    st.success("Signal-level check passed: no clipping detected and audio is not mostly silent.")
+                st.json(audio_quality)
+            except Exception as audio_exc:
+                st.warning(f"Audio quality analysis could not be completed: {audio_exc}")
             report_warnings = list(clip_issues)
             if validation.get("audio_silent"):
                 report_warnings.append("Decoded audio signal is nearly silent; review audio before publishing.")
