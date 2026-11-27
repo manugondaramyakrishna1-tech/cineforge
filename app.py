@@ -76,6 +76,11 @@ with st.expander("Intelligent Scene Director", expanded=False):
     st.json(scene_plan_report)
     for scene_index, directed_scene in enumerate(scenes, 1):
         st.caption(f"Scene {scene_index}: {directed_scene.camera} — {directed_scene.title}")
+if DURATIONS.get(duration_choice):
+    per_scene = max(2, int(DURATIONS[duration_choice] / len(scenes)))
+    for scene in scenes:
+        scene.seconds = min(20, per_scene)
+
 st.header("Visual Storyboard Preview")
 storyboard_rows = preview_rows(scenes)
 storyboard_columns = st.columns(2)
@@ -88,10 +93,9 @@ for storyboard_index, storyboard_scene in enumerate(scenes):
             st.text_area("Narration", storyboard_scene.narration, key=f"storyboard_narration_{storyboard_index}")
             st.caption(f"Timeline: {storyboard_rows[storyboard_index]['start']}s – {storyboard_rows[storyboard_index]['end']}s")
 st.download_button("Download storyboard CSV", to_csv(storyboard_rows), file_name="cineforge_storyboard.csv", mime="text/csv")
-if DURATIONS.get(duration_choice):
-    per_scene = max(2, int(DURATIONS[duration_choice] / len(scenes)))
-    for scene in scenes:
-        scene.seconds = min(20, per_scene)
+for storyboard_index, storyboard_scene in enumerate(scenes):
+    storyboard_scene.prompt = st.session_state.get(f"storyboard_prompt_{storyboard_index}", storyboard_scene.prompt)
+    storyboard_scene.narration = st.session_state.get(f"storyboard_narration_{storyboard_index}", storyboard_scene.narration)
 
 st.header("Bilingual Voiceover Studio")
 from cineforge.voice import list_voices
