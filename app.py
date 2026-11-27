@@ -425,8 +425,14 @@ if workflow_file:
                 expected_duration=total,
                 require_audio=True,
             )
-            st.success("Final MP4 passed validation.")
+            if validation.get("audio_silent"):
+                st.warning("Video export passed structural validation, but the decoded audio is nearly silent. Review the soundtrack before publishing.")
+            else:
+                st.success("Final MP4 passed structural validation with a non-silent audio signal.")
             st.json(validation)
+            report_warnings = list(clip_issues)
+            if validation.get("audio_silent"):
+                report_warnings.append("Decoded audio signal is nearly silent; review audio before publishing.")
             export_report = build_report(
                 validation,
                 expected={
@@ -435,7 +441,7 @@ if workflow_file:
                     "fps": fps,
                     "duration_seconds": total,
                 },
-                warnings=clip_issues,
+                warnings=report_warnings,
             )
             report_path = save_report(export_report, Path("outputs/cineforge_export_report.json"))
             st.markdown(report_markdown(export_report))
