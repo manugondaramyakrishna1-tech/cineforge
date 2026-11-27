@@ -419,6 +419,24 @@ if workflow_file:
             )
             st.success("Final MP4 passed validation.")
             st.json(validation)
+            export_report = build_report(
+                validation,
+                expected={
+                    "width": export_config["width"],
+                    "height": export_config["height"],
+                    "fps": fps,
+                    "duration_seconds": total,
+                },
+                warnings=clip_issues,
+            )
+            report_path = save_report(export_report, Path("outputs/cineforge_export_report.json"))
+            st.markdown(report_markdown(export_report))
+            st.download_button(
+                "Download export validation report",
+                report_path.read_bytes(),
+                file_name="cineforge_export_report.json",
+                mime="application/json",
+            )
             status.success("Movie export finished.")
             st.video(str(final))
             st.download_button("Download final MP4", final.read_bytes(), file_name="cineforge_movie.mp4", mime="video/mp4")
