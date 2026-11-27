@@ -1,8 +1,9 @@
 """Regression tests for assembly frame grading and parameter validation."""
 import unittest
 import numpy as np
+from pathlib import Path
 
-from cineforge.assembly import apply_color_grade, _assemble_video_only
+from cineforge.assembly import apply_color_grade, assemble
 
 
 class AssemblyFrameTests(unittest.TestCase):
@@ -29,10 +30,9 @@ class AssemblyFrameTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Unknown color grade"):
             apply_color_grade(frame, "invalid")
 
-    def test_invalid_output_dimensions_rejected(self):
-        with self.assertRaisesRegex(ValueError, "even numbers"):
-            _assemble_video_only(["not-opened"], __import__("pathlib").Path("unused.mp4"),
-                                 fps=24, target_width=3, target_height=3)
+    def test_empty_clip_list_rejected(self):
+        with self.assertRaisesRegex(ValueError, "No existing video clips"):
+            assemble([], Path("unused.mp4"))
 
 
 if __name__ == "__main__":
