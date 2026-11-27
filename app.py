@@ -65,6 +65,24 @@ with st.sidebar:
     fade_seconds = st.slider("Fade duration (seconds)", 0.0, 2.0, 0.5, step=0.1)\n    transition_seconds = st.slider("Scene crossfade (seconds)", 0.0, 1.5, 0.5, step=0.1)
     fps = st.slider("Final FPS", 12, 60, int(profile["fps"]))
 
+st.header("Project Workspace Isolation")
+from cineforge.project_workspace import initialize_workspace, read_manifest
+workspace_root = Path("projects/workspaces")
+workspace_root.mkdir(parents=True, exist_ok=True)
+workspace_label = st.text_input("Workspace name", prompt[:40] or "project", key="workspace_label")
+active_workspace = initialize_workspace(workspace_root, workspace_label)
+workspace_manifest = read_manifest(active_workspace)
+workspace_renders = active_workspace / "renders"
+workspace_audio = active_workspace / "audio"
+workspace_exports = active_workspace / "exports"
+workspace_checkpoints = active_workspace / "checkpoints"
+workspace_reports = active_workspace / "reports"
+for folder in (workspace_renders, workspace_audio, workspace_exports, workspace_checkpoints, workspace_reports):
+    folder.mkdir(parents=True, exist_ok=True)
+gallery_dir = workspace_renders
+st.caption(f"Active workspace: {active_workspace}")
+st.json(workspace_manifest)
+
 if st.button("Expand prompt into cinematic story"):
     st.session_state["expanded_prompt"] = expand_story(prompt, scene_count, style, character)
 story_prompt = st.session_state.get("expanded_prompt", prompt)
@@ -151,7 +169,7 @@ combined_te = "\n\n".join(telugu_scripts.get(idx, "") for idx in range(1, len(sc
 if st.button("Generate bilingual voice previews"):
     try:
         settings = VOICE_PROFILES[voice_profile]
-        output_dir = Path("outputs/bilingual_preview")
+        output_dir = workspace_audio / "bilingual_preview"
         output_dir.mkdir(parents=True, exist_ok=True)
         if voice_mode != "Telugu only" and english_voice:
             en_file = synthesize(combined_en, output_dir / "preview_english.wav", rate=settings["rate"], volume=settings["volume"], voice_id=english_voice["id"])
@@ -224,7 +242,7 @@ if st.session_state.get("restored_project"):
         st.warning(f"Could not restore scenes: {import_apply_error}")
 
 st.header("Render status dashboard")
-status_registry = read_registry(Path("outputs/render_status.json"))
+status_registry = read_registry(workspace_reports / "render_status.json")
 if status_registry:
     status_cols = st.columns(4)
     counts = {state: sum(1 for entry in status_registry.values() if entry.get("status") == state) for state in ["complete", "rendering", "queued", "failed"]}
@@ -272,19 +290,9 @@ with st.expander("Scene image review report", expanded=False):
     if not image_review_report["image_count"]:
         st.info("No saved scene images found. This checks image files, not video frames or semantic continuity.")
 
-st.header("Project Workspace Isolation")
-from cineforge.project_workspace import initialize_workspace, read_manifest
-workspace_root = Path("projects/workspaces")
-workspace_root.mkdir(parents=True, exist_ok=True)
-workspace_label = st.text_input("Workspace name", prompt[:40] or "project", key="workspace_label")
-active_workspace = initialize_workspace(workspace_root, workspace_label)
-workspace_manifest = read_manifest(active_workspace)
-st.caption(f"Active workspace: {active_workspace}")
-st.json(workspace_manifest)
-st.info("Project folder layout and manifest are initialized. Render pipeline migration is still pending.")
 st.header("Smart Scene Asset Manager")
 from cineforge.asset_manager import scan_assets, summarize_assets
-asset_root = Path("outputs")
+asset_root = active_workspace
 asset_inventory = scan_assets(asset_root)
 asset_summary = summarize_assets(asset_inventory)
 asset_cols = st.columns(5)
@@ -299,7 +307,7 @@ with st.expander("Asset inventory", expanded=False):
     else:
         st.info("No recognized assets found under outputs yet.")
 st.header("Scene Gallery — saved renders")
-gallery_dir = Path("outputs")
+gallery_dir = workspace_renders
 saved_scene_files = sorted(gallery_dir.glob("final_scene_*/*")) if gallery_dir.exists() else []
 saved_scene_files = [p for p in saved_scene_files if p.is_file() and p.suffix.lower() in {".mp4", ".webm", ".mov"}]
 if saved_scene_files:
@@ -374,8 +382,8 @@ preview_candidates = [p for p in preview_candidates if p.is_file() and p.suffix.
 if preview_candidates:
     if st.button("Assemble visual preview from available scenes"):
         try:
-            preview_ordered = apply_replacements(preview_candidates, Path("outputs/replacements.json"))
-            preview_file = assemble(preview_ordered, Path("outputs/cineforge_preview.mp4"), fps, fade_seconds=fade_seconds)
+            preview_ordered = apply_replacements(preview_candidates, workspace_reports / "replacements.json")
+            preview_file = assemble(preview_ordered, workspace_exports / "cineforge_preview.mp4", fps, fade_seconds=fade_seconds)
             st.success("Preview assembled.")
             st.video(str(preview_file))
             st.download_button("Download cinematic preview", preview_file.read_bytes(), file_name="cineforge_preview.mp4", mime="video/mp4")
@@ -399,7 +407,7 @@ if workflow_file:
                 regen_wf = ComfyUI.replace_placeholders(regen_workflow, {"__PROMPT__": final_prompt, "__NEGATIVE__": negative})
                 regen_pid = regen_engine.submit(regen_wf)
                 regen_outputs = regen_engine.wait_for_outputs(regen_pid, st)
-                regen_clips = regen_engine.download_videos(regen_outputs, Path("outputs") / f"scene_{scene_choice}_replacement_preview")
+                regen_clips = regen_engine.download_videos(regen_outputs, workspace_renders / f"scene_{scene_choice}_replacement_preview")
                 if regen_clips:
                     st.success("Replacement preview rendered.")
                     st.info("Replacement previews are saved separately; you can mark a preview for use in the final timeline.")
@@ -427,7 +435,7 @@ if workflow_file:
             clips = []
             status = st.empty()
             progress = st.progress(0)
-            checkpoint_path = Path("outputs/cineforge_checkpoint.json")
+            checkpoint_path = workspace_checkpoints / "cineforge_checkpoint.json"
             completed = []
             if checkpoint_path.exists():
                 try:
@@ -448,7 +456,7 @@ if workflow_file:
                 wf = ComfyUI.replace_placeholders(workflow, {"__PROMPT__": scene_prompt, "__NEGATIVE__": negative})
                 pid = engine.submit(wf)
                 outputs = engine.wait_for_outputs(pid, status)
-                videos = engine.download_videos(outputs, Path("outputs") / f"final_scene_{i}")
+                videos = engine.download_videos(outputs, workspace_renders / f"final_scene_{i}")
                 if not videos:
                     raise RuntimeError(f"No video output detected for scene {i}.")
                 clips.extend(videos)
@@ -457,7 +465,7 @@ if workflow_file:
                 progress.progress(i / len(scenes))
                 save_checkpoint(checkpoint_path, story_prompt, scenes, completed, clips)
             status.info("Generating narration...")
-            audio_dir = Path("outputs/audio")
+            audio_dir = workspace_audio
             audio_dir.mkdir(parents=True, exist_ok=True)
             voice_settings = VOICE_PROFILES[voice_profile]
             voices = []
@@ -492,7 +500,7 @@ if workflow_file:
             if not valid_clips:
                 raise RuntimeError("No valid video clips available for final assembly.")
             st.json(assembly_summary(valid_clips, fps, fade_seconds, mixed))
-            final = assemble(valid_clips, Path("outputs/cineforge_movie_with_sound.mp4"), fps, audio_path=mixed, fade_seconds=fade_seconds, target_width=export_config["width"], target_height=export_config["height"], color_grade=color_grade, transition_seconds=transition_seconds)
+            final = assemble(valid_clips, workspace_exports / "cineforge_movie_with_sound.mp4", fps, audio_path=mixed, fade_seconds=fade_seconds, target_width=export_config["width"], target_height=export_config["height"], color_grade=color_grade, transition_seconds=transition_seconds)
             validation = validate_final_video(
                 final,
                 expected_width=export_config["width"],
@@ -537,7 +545,7 @@ if workflow_file:
                 },
                 warnings=report_warnings,
             )
-            report_path = save_report(export_report, Path("outputs/cineforge_export_report.json"))
+            report_path = save_report(export_report, workspace_reports / "cineforge_export_report.json")
             st.markdown(report_markdown(export_report))
             from cineforge.quality_gate import quality_gate
             gate_result = quality_gate(
