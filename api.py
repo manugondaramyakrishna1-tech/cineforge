@@ -15,7 +15,8 @@ submitted = {}
 jobs = {}
 lock = threading.Lock()
 OUTPUT_DIR = Path("outputs"); OUTPUT_DIR.mkdir(exist_ok=True)
-DB_PATH = Path("cineforge_jobs.sqlite3")\nlast_worker_seen = None
+DB_PATH = Path("cineforge_jobs.sqlite3")
+last_worker_seen = None
 
 def now():
     return datetime.now(timezone.utc).isoformat()
@@ -32,7 +33,6 @@ def init_db():
           created_at TEXT NOT NULL, updated_at TEXT NOT NULL, output TEXT, progress INTEGER DEFAULT 0, stage TEXT, started_at TEXT, elapsed_seconds REAL,
           error TEXT, settings TEXT NOT NULL)""")
         c.execute("UPDATE jobs SET status='failed', error='Interrupted by server restart', updated_at=? WHERE status IN ('queued','running')", (now(),))
-    reload_jobs()
 
 def ensure_columns():
     with db() as c:
@@ -48,6 +48,7 @@ def reload_jobs():
 
 init_db()
 ensure_columns()
+reload_jobs()
 
 class GenerateRequest(BaseModel):
     prompt: str = Field(min_length=3, max_length=2000)
@@ -121,12 +122,14 @@ def queue_snapshot():
 def get_queue(): return queue_snapshot()
 
 @app.get("/health")
-def health():\n    report=gpu_report(); report["backend"]=backend_status(); return report
+def health():
+    report=gpu_report(); report["backend"]=backend_status(); return report
 
 @app.post("/jobs",status_code=202)
 def create_job(request:GenerateRequest):
     report=gpu_report()
-    bridge_enabled=bool(os.getenv("CINEFORGE_FREE_GPU_BRIDGE_TOKEN"))\n    if not report["cuda_available"] and not backend_status()["endpoint_configured"] and not bridge_enabled: raise HTTPException(status_code=503,detail=report["runtime_hint"]+" Configure the free GPU bridge token or hosted endpoint.")
+    bridge_enabled=bool(os.getenv("CINEFORGE_FREE_GPU_BRIDGE_TOKEN"))
+    if not report["cuda_available"] and not backend_status()["endpoint_configured"] and not bridge_enabled: raise HTTPException(status_code=503,detail=report["runtime_hint"]+" Configure the free GPU bridge token or hosted endpoint.")
     job_id=str(uuid.uuid4()); stamp=now()
     settings=request.model_dump() if hasattr(request,"model_dump") else request.dict()
     j={"job_id":job_id,"prompt":request.prompt,"status":"queued","created_at":stamp,"updated_at":stamp,"output":None,"error":None,"settings":settings,"progress":0,"stage":"Queued","started_at":None,"elapsed_seconds":0}
@@ -142,9 +145,22 @@ def require_bridge_token(authorization):
     if not expected or not secrets.compare_digest(supplied,expected):
         raise HTTPException(status_code=401,detail="Invalid bridge credentials")
 
-@app.get("/bridge/status")\ndef bridge_status():\n    from datetime import datetime, timezone\n    seen=None\n    age=None\n    if last_worker_seen:\n        seen_dt=datetime.fromisoformat(last_worker_seen)\n        age=max(0,(datetime.now(timezone.utc)-seen_dt).total_seconds())\n    online=age is not None and age < 45\n    return {"enabled":bool(os.getenv("CINEFORGE_FREE_GPU_BRIDGE_TOKEN")),"worker_online":online,"last_seen":last_worker_seen,"seconds_since_heartbeat":age}\n\n@app.post("/bridge/claim")
+@app.get("/bridge/status")
+def bridge_status():
+    from datetime import datetime, timezone
+    seen=None
+    age=None
+    if last_worker_seen:
+        seen_dt=datetime.fromisoformat(last_worker_seen)
+        age=max(0,(datetime.now(timezone.utc)-seen_dt).total_seconds())
+    online=age is not None and age < 45
+    return {"enabled":bool(os.getenv("CINEFORGE_FREE_GPU_BRIDGE_TOKEN")),"worker_online":online,"last_seen":last_worker_seen,"seconds_since_heartbeat":age}
+
+@app.post("/bridge/claim")
 def bridge_claim(authorization: str = Header(default="")):
+    global last_worker_seen
     require_bridge_token(authorization)
+    last_worker_seen = now()
     with lock:
         queued=sorted((j for j in jobs.values() if j["status"]=="queued"),key=lambda j:j["created_at"])
         if not queued: return {"job":None}
