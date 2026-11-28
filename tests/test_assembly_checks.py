@@ -151,5 +151,34 @@ class AssemblyCheckTests(unittest.TestCase):
 
 
 
+    def test_final_video_validator_rejects_audio_video_duration_mismatch(self):
+        from unittest.mock import MagicMock, patch
+        from cineforge.assembly_checks import validate_final_video
+        import numpy as np
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "out_of_sync.mp4"
+            output.write_bytes(b"not-empty")
+            video = MagicMock(type="video", width=1280, height=720,
+                              average_rate=30, base_rate=30,
+                              duration=3000, time_base=1 / 30)
+            audio = MagicMock(type="audio", duration=2400, time_base=1 / 30)
+            video_packet = MagicMock(dts=0, stream=video)
+            video_packet.decode.return_value = [MagicMock()]
+            audio_packet = MagicMock(dts=0, stream=audio)
+            audio_frame = MagicMock()
+            audio_frame.to_ndarray.return_value = np.ones((1, 32), dtype=np.float32) * 0.1
+            audio_packet.decode.return_value = [audio_frame]
+            container = MagicMock()
+            container.streams = [video, audio]
+            container.duration = 100000000
+            container.demux.return_value = [video_packet, audio_packet]
+            with patch("av.open") as open_media:
+                open_media.return_value.__enter__.return_value = container
+                with self.assertRaisesRegex(ValueError, "Audio/video duration mismatch"):
+                    validate_final_video(output, 1280, 720, 30, require_audio=True)
+
+
+
 if __name__ == "__main__":
     unittest.main()
