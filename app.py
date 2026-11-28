@@ -569,7 +569,7 @@ for i, scene in enumerate(scenes, 1):
 script = export_script(story_prompt, style, character, scenes)
 script.update({"original_prompt": prompt, "scene_order": [scene.title for scene in scenes], "timeline": {"total_seconds": total, "fps": fps}, "cinematic_look": look, "output_profile": profile_name, "duration_preset": duration_choice, "target_dimensions": [profile["width"], profile["height"]]})
 script["cineforge_settings"] = project_settings_payload({"negative_prompt": negative, "duration_choice": duration_choice, "scene_count": scene_count, "visual_style": style, "output_profile": profile_name, "music_volume": music_volume, "voice_volume": voice_volume, "look": look, "fade_seconds": fade_seconds, "transition_seconds": transition_seconds, "fps": fps, "voice_mode": voice_mode, "voice_profile": voice_profile, "workspace_label": workspace_label})
-st.download_button("Download subtitles (SRT)", create_srt(scenes, transition_seconds), file_name="cineforge_subtitles.srt", mime="text/plain")
+st.download_button("Download subtitles (SRT)", create_srt(scenes, transition_seconds, trim_ranges), file_name="cineforge_subtitles.srt", mime="text/plain")
 st.download_button("Save project JSON", json.dumps(script, indent=2), file_name="cineforge_project.json", mime="application/json")
 if st.button("Save to project database"):
     try:
