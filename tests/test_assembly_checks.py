@@ -15,6 +15,20 @@ class AssemblyCheckTests(unittest.TestCase):
             self.assertEqual(len(issues), 1)
             self.assertIn("missing", issues[0].lower())
 
+    def test_clip_with_no_decodable_frames_is_rejected(self):
+        from unittest.mock import MagicMock, patch
+        with tempfile.TemporaryDirectory() as tmp:
+            clip = Path(tmp) / "blank.mp4"
+            clip.touch()
+            container = MagicMock()
+            container.streams = [MagicMock(type="video")]
+            container.decode.return_value = iter(())
+            with patch("av.open", return_value=container):
+                clips, issues = validate_clips([clip])
+            self.assertEqual(clips, [])
+            self.assertEqual(len(issues), 1)
+            self.assertIn("no decodable video frames", issues[0])
+
     def test_summary_reports_clip_and_audio_settings(self):
         summary = assembly_summary(
             [Path("scene_01.mp4"), Path("scene_02.mp4")],
