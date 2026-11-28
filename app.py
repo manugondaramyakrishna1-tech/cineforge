@@ -712,7 +712,7 @@ if local_state.get("ready", False):
                     progress.progress(min(1.0, len(completed) / len(scenes)))
                     continue
                 scene_prompt = scene.prompt + " Camera direction: " + CAMERA_PRESETS[scene.camera] + f". Color look: {LOOK_PRESETS[look]}. Target format: {profile_name}, {profile['width']}x{profile['height']}."
-                wf = {"prompt": scene_prompt, "negative_prompt": negative, "num_frames": 49, "steps": 20, "guidance_scale": 6.0}
+                wf = {"prompt": scene_prompt, "negative_prompt": negative, "num_frames": 49, "steps": 20, "guidance_scale": 6.0, "width": profile["width"], "height": profile["height"]}
 
                 def render_scene():
                     set_scene_status(workspace_reports / "render_status.json", i, "rendering", scene.title)
