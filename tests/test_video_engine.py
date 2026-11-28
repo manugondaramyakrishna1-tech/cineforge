@@ -43,6 +43,22 @@ class VideoEngineTests(unittest.TestCase):
         from cineforge.video_engine import workflow_prompt_issues
         self.assertTrue(workflow_prompt_issues({"1": {"inputs": {"text": "fixed prompt"}}}))
         self.assertEqual(workflow_prompt_issues({"1": {"inputs": {"text": "__PROMPT__"}}}), [])
+
+    def test_render_setup_requires_server(self):
+        from cineforge.video_engine import render_setup_issues
+        workflow = {"1": {"inputs": {"text": "__PROMPT__"}}}
+        self.assertTrue(any("Provider URL is missing" in issue for issue in render_setup_issues("", workflow)))
+
+    def test_render_setup_requires_prompt_placeholder(self):
+        from cineforge.video_engine import render_setup_issues
+        workflow = {"1": {"inputs": {"text": "hard-coded text"}}}
+        self.assertTrue(any("__PROMPT__" in issue for issue in render_setup_issues("http://localhost:8188", workflow)))
+
+    def test_render_setup_accepts_valid_configuration(self):
+        from cineforge.video_engine import render_setup_issues
+        workflow = {"1": {"inputs": {"text": "__PROMPT__"}}}
+        self.assertEqual(render_setup_issues("http://localhost:8188", workflow), [])
+
     def test_scene_duration_clamped(self):
         scene = SimpleNamespace(title="Scene", prompt="A landscape", camera="wide", seconds=100)
         payload = prepare_scene_prompts([scene], {}, {}, "style", "preset", 640, 480)
