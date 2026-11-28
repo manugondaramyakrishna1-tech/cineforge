@@ -3,7 +3,7 @@
 Set CINEFORGE_API_URL and CINEFORGE_FREE_GPU_BRIDGE_TOKEN as notebook secrets
 (or environment variables). Keep this notebook session running to accept jobs.
 """
-import os, time, requests, torch
+import os, time, requests, torch, threading
 from pathlib import Path
 from diffusers import CogVideoXPipeline
 from diffusers.utils import export_to_video
@@ -48,7 +48,18 @@ def process(pipe, job):
     finally:
         path.unlink(missing_ok=True)
 
+def heartbeat_loop(stop_event):
+    while not stop_event.is_set():
+        try:
+            response=requests.post(f"{API}/bridge/heartbeat",headers=HEADERS,timeout=20)
+            response.raise_for_status()
+        except Exception as exc:
+            print("Heartbeat error:",exc)
+        stop_event.wait(15)
+
 def run_worker():
+    stop_event=threading.Event()
+    threading.Thread(target=heartbeat_loop,args=(stop_event,),daemon=True).start()
     pipe=load_pipeline()
     print("Polling CineForge API. Stop the notebook cell to disconnect.")
     while True:
