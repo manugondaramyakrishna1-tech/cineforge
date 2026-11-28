@@ -42,3 +42,24 @@ Poll `GET /jobs/{job_id}` and download from `GET /jobs/{job_id}/video` when comp
 - API server must persist SQLite and output files. For multiple API instances, use shared durable storage and a proper queue; this prototype is single-instance.
 - This is free-tier experimentation, not guaranteed free or always-on hosting. Provider GPU access and quotas vary.
 - Maximum uploaded video size is currently 500 MB.
+
+
+## Milestone 15: verify the bridge before using a GPU session
+
+Run these checks from the project root in a Python environment that has the project dependencies installed:
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest -q
+```
+
+The tests use a temporary SQLite database and a test-only bridge token. They cover:
+- bridge token rejection and authenticated worker heartbeat;
+- queued-job claiming;
+- MP4 upload completion and video download;
+- rejection of non-MP4 upload data;
+- worker failure reporting.
+
+These tests do not load CogVideoX or require a GPU. A successful test run verifies the API contract only; a real Kaggle/Colab generation still needs a separate live GPU test.
+
+For a live notebook session, set `CINEFORGE_API_URL` and `CINEFORGE_FREE_GPU_BRIDGE_TOKEN` as notebook secrets. Keep the token private and do not commit it to GitHub.
