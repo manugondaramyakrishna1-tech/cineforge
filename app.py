@@ -73,6 +73,16 @@ from cineforge.startup_check import run_checks
 with st.expander("Startup diagnostics"):
     st.json(run_checks())
 
+with st.expander("Self-hosted video model diagnostics", expanded=True):
+    from cineforge.local_video import runtime_status
+    local_state = runtime_status()
+    st.json(local_state)
+    if local_state.get("ready"):
+        st.success("GPU/accelerator detected. Local model inference can be configured on this machine.")
+    else:
+        st.warning("Local video generation is unavailable in this environment. CineForge can still build storyboards and manage project assets; actual local model rendering requires supported GPU hardware.")
+    st.caption("This diagnostic does not download model weights or call an external video-generation service.")
+
 with st.sidebar:
     st.subheader("AI video generation provider")
     provider_mode = st.radio(
