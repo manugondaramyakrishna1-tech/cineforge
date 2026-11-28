@@ -27,7 +27,7 @@ def apply_color_grade(rgb, preset='none'):
     return work.clip(0, 255).astype(np.uint8)
 
 
-def _iter_clip_frames(path, width, height, fps, fade_seconds, color_grade):
+def _iter_clip_frames(path, width, height, fps, fade_seconds, color_grade, trim_start=0.0, trim_end=None):
     """Decode one clip onto the output FPS grid and yield standardized RGB frames."""
     with av.open(str(path)) as src:
         video = next((s for s in src.streams if s.type == 'video'), None)
@@ -39,7 +39,7 @@ def _iter_clip_frames(path, width, height, fps, fade_seconds, color_grade):
             duration_seconds = float(video.duration * video.time_base)
         elif video.frames and source_rate:
             duration_seconds = float(video.frames / source_rate)
-        target_frames = max(0, round(duration_seconds * fps)) if duration_seconds else 0
+        trim_start = max(0.0, float(trim_start))\n        effective_end = duration_seconds if trim_end is None else min(duration_seconds, max(trim_start, float(trim_end)))\n        segment_duration = max(0.0, effective_end - trim_start) if duration_seconds is not None else 0.0\n        target_frames = max(0, round(segment_duration * fps)) if segment_duration else 0
         fade_frames = min(max(0, int(fade_seconds * fps)), target_frames // 2) if target_frames else 0
         first_timestamp = None
         next_output_frame = 0
@@ -84,7 +84,7 @@ def _iter_clip_frames(path, width, height, fps, fade_seconds, color_grade):
                 next_output_frame += 1
 
 
-def _assemble_video_only(clips, output: Path, fps: int, fade_seconds: float = 0.0, target_width=None, target_height=None, color_grade='none', transition_seconds: float = 0.0):
+def _assemble_video_only(clips, output: Path, fps: int, fade_seconds: float = 0.0, target_width=None, target_height=None, color_grade='none', transition_seconds: float = 0.0, trim_ranges=None):
     from cineforge.transitions import crossfade_clip_streams
 
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -217,13 +217,13 @@ def mux_audio(video_path, audio_path, output_path):
             out.mux(encoded)
     return output_path
 
-def assemble(clips, output: Path, fps: int = 24, audio_path=None, fade_seconds: float = 0.0, target_width=None, target_height=None, color_grade='none', transition_seconds: float = 0.0):
+def assemble(clips, output: Path, fps: int = 24, audio_path=None, fade_seconds: float = 0.0, target_width=None, target_height=None, color_grade='none', transition_seconds: float = 0.0, trim_ranges=None):
     clips = [Path(p) for p in clips if Path(p).exists()]
     if not clips: raise ValueError('No existing video clips provided.')
     output = Path(output)
     if audio_path is None:
-        return _assemble_video_only(clips, output, fps, fade_seconds, target_width, target_height, color_grade, transition_seconds)
+        return _assemble_video_only(clips, output, fps, fade_seconds, target_width, target_height, color_grade, transition_seconds, trim_ranges)
     with tempfile.TemporaryDirectory(prefix='cineforge_') as tmp:
         temp_video = Path(tmp) / 'video_only.mp4'
-        _assemble_video_only(clips, temp_video, fps, fade_seconds, target_width, target_height, color_grade, transition_seconds)
+        _assemble_video_only(clips, temp_video, fps, fade_seconds, target_width, target_height, color_grade, transition_seconds, trim_ranges)
         return mux_audio(temp_video, Path(audio_path), output)
