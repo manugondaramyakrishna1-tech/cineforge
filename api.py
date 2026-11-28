@@ -87,3 +87,7 @@ def download_video(job_id: str):
             raise HTTPException(status_code=409, detail=f"Job is {job['status']}")
         path = job["output"]
     return FileResponse(path, media_type="video/mp4", filename=f"cineforge-{job_id}.mp4")
+
+@app.get("/", include_in_schema=False)
+def mobile_frontend():
+    return FileResponse("mobile.html", media_type="text/html")
