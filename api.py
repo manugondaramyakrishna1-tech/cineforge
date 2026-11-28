@@ -188,17 +188,20 @@ async def bridge_result(job_id: str, video: UploadFile = File(...), authorizatio
         if job["status"]!="running": raise HTTPException(409,detail="Job is not running")
     path=OUTPUT_DIR/f"{job_id}.mp4"
     size=0
+    header=bytearray()
     with path.open("wb") as out:
         while chunk:=await video.read(1024*1024):
             size+=len(chunk)
+            if len(header)<12:
+                header.extend(chunk[:12-len(header)])
             if size>500*1024*1024:
                 out.close()
                 path.unlink(missing_ok=True)
                 raise HTTPException(413,detail="Video exceeds 500 MB limit")
             out.write(chunk)
-    if size<128:
+    if size<128 or len(header)<12 or header[4:8]!=b"ftyp":
         path.unlink(missing_ok=True)
-        raise HTTPException(400,detail="Uploaded video is empty or invalid")
+        raise HTTPException(400,detail="Upload is not a valid MP4 container")
     update_job(job_id,status="completed",stage="Complete",progress=100,output=str(path),error=None)
     return {"job_id":job_id,"status":"completed","bytes":size}
 
