@@ -6,8 +6,15 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, UploadFile, File, Header
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
-import torch
-from model_pipeline import generate_video, MODEL_ID, backend_status
+MODEL_ID = os.getenv("CINEFORGE_MODEL_ID", "THUDM/CogVideoX-2b")
+
+def backend_status():
+    # Keep the API lightweight in bridge mode; load model dependencies only for local inference.
+    try:
+        from model_pipeline import backend_status as _backend_status
+        return _backend_status()
+    except Exception as exc:
+        return {"endpoint_configured": False, "error": str(exc)[:300]}
 
 app = FastAPI(title="CineForge Video API", version="1.3.0")
 executor = ThreadPoolExecutor(max_workers=1)
@@ -74,6 +81,13 @@ def monitor():
     return {"gpu":gpu_metrics(),"queue":queue_snapshot(),"active_job":active}
 
 def gpu_report():
+    try:
+        import torch
+    except Exception as exc:
+        return {"status":"ok","cuda_available":False,"torch_version":None,"cuda_build":None,
+                "gpu":None,"memory":None,"device_count":0,
+                "runtime_hint":"PyTorch is not installed on the API host; use the free GPU bridge worker.",
+                "nvidia_smi":{"available":False,"output":str(exc)[:500]}}
     available=torch.cuda.is_available()
     result={"status":"ok","cuda_available":available,"torch_version":str(torch.__version__),
       "cuda_build":torch.version.cuda,"gpu":None,"memory":None,"device_count":torch.cuda.device_count(),
@@ -107,6 +121,7 @@ def worker(job_id, request):
     def on_step(step,total):
         update_job(job_id,stage="Generating frames",progress=int(step*100/max(total,1)),elapsed_seconds=round(time.monotonic()-started,1))
     try:
+        from model_pipeline import generate_video
         path=OUTPUT_DIR/f"{job_id}.mp4"
         generate_video(request.prompt,str(path),request.model_id,request.frames,request.steps,request.guidance,request.seed,progress_callback=on_step)
         update_job(job_id,status="completed",stage="Complete",progress=100,output=str(path),error=None,elapsed_seconds=round(time.monotonic()-started,1))
