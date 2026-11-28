@@ -45,7 +45,8 @@ prompt = st.text_area(
     key="prompt",
     help="Write the story or scene idea you want CineForge to turn into a cinematic storyboard."
 )
-st.caption("Create a storyboard from your idea first. Actual footage rendering requires a connected generation service and compatible workflow.")
+st.caption("Step 1: create and review your storyboard. Step 2: use the AI video rendering section below to generate actual scene footage with a connected ComfyUI service.")
+st.markdown("**Ready to render actual video?** Configure ComfyUI in the sidebar, then jump to [Generate final movie ↓](#generate-final-movie).")
 
 # Early defaults prevent engine-status UI from referencing sidebar inputs before they exist.
 server = ""
@@ -57,7 +58,7 @@ with quick_cols[0]:
     st.selectbox("Format", ["Vertical 9:16", "Landscape 16:9", "Square 1:1"], key="quick_format")
 with quick_cols[1]:
     st.selectbox("Length", ["15 seconds", "30 seconds", "60 seconds"], key="quick_length")
-st.caption("Use Generate Video to draft scenes; connect the optional render provider in the sidebar to create footage.")
+st.caption("Storyboard creation does not render footage. Actual AI video generation is a separate step after scene review.")
 
 with st.expander("Release readiness audit"):
     audit = audit_repo(".")
@@ -141,7 +142,7 @@ gallery_dir = workspace_renders
 st.caption(f"Active workspace: {active_workspace}")
 st.json(workspace_manifest)
 
-if st.button("🎬 Generate Video — create storyboard", type="primary"):
+if st.button("📝 Create storyboard", type="primary"):
     st.session_state["expanded_prompt"] = expand_story(prompt, scene_count, style, character)
     st.session_state["prompt_storyboard_ready"] = True
 
@@ -649,7 +650,8 @@ if workflow_file:
 else:
     st.info("Upload your ComfyUI workflow JSON in the sidebar to enable individual scene regeneration.")
 
-st.header("🎥 Generate final movie")
+st.markdown('<div id="generate-final-movie"></div>', unsafe_allow_html=True)
+st.header("🎥 Generate final movie — AI video rendering")
 st.caption(f"Final MP4 will be resized to {export_config['width']} × {export_config['height']} at {fps} FPS during assembly.")
 if not server.strip():
     st.warning("Connect a ComfyUI server in the sidebar to enable video rendering.")
