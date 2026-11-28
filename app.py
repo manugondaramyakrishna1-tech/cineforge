@@ -101,7 +101,7 @@ with st.sidebar:
     transition_seconds = st.slider("Scene crossfade (seconds)", 0.0, 1.5, 0.5, step=0.1, key="transition_seconds")
     fps = st.slider("Final FPS", 12, 60, int(profile["fps"]), key="fps")
 
-from cineforge.video_engine import provider_status, validate_workflow
+from cineforge.video_engine import provider_status, validate_workflow, workflow_prompt_issues
 with st.expander("Prompt-to-video engine status", expanded=True):
     parsed_workflow = None
     if workflow_file is not None:
@@ -661,7 +661,11 @@ if workflow_file:
     except Exception as exc:
         workflow = None
         st.error(f"Invalid workflow JSON: {exc}")
-    if workflow is not None and st.button("🎬 Generate / Resume movie", type="primary"):
+    if workflow is not None:
+        prompt_issues = workflow_prompt_issues(workflow)
+        for prompt_issue in prompt_issues:
+            st.error(prompt_issue)
+    if workflow is not None and not workflow_prompt_issues(workflow) and st.button("🎬 Generate / Resume movie", type="primary"):
         try:
             engine = ComfyUI(server)
             clips = []
