@@ -30,7 +30,7 @@ CineForge's local engine is implemented in `cineforge/local_video.py`. It loads 
 4. Set `CINEFORGE_MODEL_ID` to a compatible Diffusers CogVideoX model ID if you are not using the default.
 5. Start CineForge on the same machine as the GPU.
 
-**Important:** The local inference module is implemented, but the Streamlit render controls are not yet switched over to it. The current app UI still contains the earlier provider selector. Do not configure a Replicate token or expose a ComfyUI server as a workaround; UI integration is the next implementation step. Actual generation has not yet been verified on a GPU in this repository.
+**Status:** The Streamlit controls and full movie scene loop are now connected to the local engine, including checkpoint resume and retry. Actual generation has not yet been verified on a GPU. Codespaces environments commonly lack a GPU; the app will report not-ready rather than run this model on CPU.
 
 ## No FFmpeg executable
 
