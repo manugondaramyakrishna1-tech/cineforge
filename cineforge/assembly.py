@@ -239,8 +239,16 @@ def mux_audio(video_path, audio_path, output_path):
     return output_path
 
 def assemble(clips, output: Path, fps: int = 24, audio_path=None, fade_seconds: float = 0.0, target_width=None, target_height=None, color_grade='none', transition_seconds: float = 0.0, trim_ranges=None):
-    clips = [Path(p) for p in clips if Path(p).exists()]
-    if not clips: raise ValueError('No existing video clips provided.')
+    clips = [Path(path) for path in clips]
+    if not clips:
+        raise ValueError('No video clips provided.')
+    missing = [str(path) for path in clips if not path.is_file()]
+    if missing:
+        raise FileNotFoundError('Missing scene clip(s): ' + ', '.join(missing))
+    if int(fps) <= 0:
+        raise ValueError('Output FPS must be a positive integer.')
+    if trim_ranges is not None and len(trim_ranges) != len(clips):
+        raise ValueError('Trim ranges must match the number of video clips.')
     output = Path(output)
     if audio_path is None:
         return _assemble_video_only(clips, output, fps, fade_seconds, target_width, target_height, color_grade, transition_seconds, trim_ranges)
