@@ -1,15 +1,15 @@
-"""FastAPI job API for CineForge. Jobs are held in memory for this single-process demo."""
+"""FastAPI job API for CineForge. GPU execution occurs on the host running this service."""
 import uuid
 import threading
-from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
-
+import torch
 from model_pipeline import generate_video, MODEL_ID
 
-app = FastAPI(title="CineForge Video API", version="1.0.0")
+app = FastAPI(title="CineForge Video API", version="1.1.0")
 executor = ThreadPoolExecutor(max_workers=1)
 jobs = {}
 lock = threading.Lock()
@@ -23,6 +23,20 @@ class GenerateRequest(BaseModel):
     steps: int = Field(default=25, ge=1, le=50)
     guidance: float = Field(default=6.0, ge=1.0, le=10.0)
     seed: int = Field(default=42, ge=0, le=9999999)
+
+def gpu_report():
+    available = torch.cuda.is_available()
+    result = {"cuda_available": available, "torch_version": torch.__version__,
+              "cuda_build": torch.version.cuda, "gpu": None, "memory": None}
+    if available:
+        device = torch.cuda.get_device_properties(0)
+        result["gpu"] = device.name
+        result["memory"] = {
+            "total_bytes": device.total_memory,
+            "allocated_bytes": torch.cuda.memory_allocated(0),
+            "reserved_bytes": torch.cuda.memory_reserved(0)
+        }
+    return result
 
 def worker(job_id, request):
     with lock:
@@ -39,12 +53,12 @@ def worker(job_id, request):
 
 @app.get("/health")
 def health():
-    import torch
-    return {"status": "ok", "cuda_available": torch.cuda.is_available(),
-            "gpu": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None}
+    return {"status": "ok", **gpu_report()}
 
 @app.post("/jobs", status_code=202)
 def create_job(request: GenerateRequest):
+    if not torch.cuda.is_available():
+        raise HTTPException(status_code=503, detail="GPU unavailable on this API host. Deploy API on a CUDA-enabled host.")
     job_id = str(uuid.uuid4())
     with lock:
         jobs[job_id] = {"job_id": job_id, "status": "queued"}
