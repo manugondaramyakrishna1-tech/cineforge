@@ -37,6 +37,16 @@ st.set_page_config(page_title="CineForge AI Studio", page_icon="🎬", layout="w
 st.title("🎬 CineForge AI — Production Studio")
 st.caption("Storyboard, scene review, rendering, narration, soundtrack and final MP4. No FFmpeg executable is called.")
 
+st.header("🎬 Create a Movie")
+prompt = st.text_area(
+    "Describe your movie idea",
+    st.session_state.get("prompt", "A traveler discovers a glowing hidden city deep in the mountains"),
+    height=160,
+    key="prompt",
+    help="Write the story or scene idea you want CineForge to turn into a cinematic storyboard."
+)
+st.caption("Generation requires a running ComfyUI server and an API workflow file. The storyboard can be created and edited without them.")
+
 with st.expander("Release readiness audit"):
     audit = audit_repo(".")
     st.json(audit)
@@ -62,7 +72,6 @@ with st.sidebar:
                 st.warning("ComfyUI is not reachable. You can continue using CineForge's non-generation features. " + format_queue(diagnostic))
     if not server.strip():
         st.caption("ComfyUI: Not configured · Optional")
-    prompt = st.text_area("Movie idea", st.session_state.get("prompt", "A traveler discovers a glowing hidden city deep in the mountains"), height=140, key="prompt")
     character = st.text_area("Character continuity", st.session_state.get("character", "A traveler in a weathered dark-green cloak, leather backpack and boots; same appearance throughout"), height=90, key="character")
     negative = st.text_area("Negative prompt", "blurry, flicker, distorted anatomy, text, watermark")
     duration_choice = st.selectbox("Movie length", list(DURATIONS), key="duration_choice")
@@ -507,8 +516,12 @@ if workflow_file:
 else:
     st.info("Upload your ComfyUI workflow JSON in the sidebar to enable individual scene regeneration.")
 
-st.header("Generate final movie")
+st.header("🎥 Generate final movie")
 st.caption(f"Final MP4 will be resized to {export_config['width']} × {export_config['height']} at {fps} FPS during assembly.")
+if not server.strip():
+    st.warning("Connect a ComfyUI server in the sidebar to enable video rendering.")
+if not workflow_file:
+    st.warning("Upload a ComfyUI API workflow JSON in the sidebar to enable the Generate / Resume movie button.")
 if workflow_file:
     try:
         workflow = json.loads(workflow_file.getvalue())
