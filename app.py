@@ -548,7 +548,7 @@ for item in findings:
 if st.button("Refresh scene review"):
     st.rerun()
 
-total = sum(scene.seconds for scene in scenes) - transition_seconds * max(0, len(scenes) - 1)
+total = trimmed_duration
 st.subheader("Timeline")
 preview_data = preview_rows(scenes)
 st.download_button("Download timeline CSV", to_csv(preview_data), file_name="cineforge_timeline.csv", mime="text/csv")
