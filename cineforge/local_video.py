@@ -117,7 +117,8 @@ class LocalCogVideoX:
         generator = None
         seed = self._pending.get("seed")
         if seed is not None:
-            generator = torch.Generator(device="cuda" if torch.cuda.is_available() else "cpu").manual_seed(int(seed))
+            generator_device = "cuda" if torch.cuda.is_available() else "mps" if hasattr(torch.backends, "mps") and torch.backends.mps.is_available() else "cpu"
+            generator = torch.Generator(device=generator_device).manual_seed(int(seed))
         try:
             result = pipe(
                 prompt=self._pending["prompt"],
