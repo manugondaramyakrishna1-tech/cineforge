@@ -423,6 +423,32 @@ st.header("Scene Asset Links & Replacement History")
 scene_asset_manifest = workspace_reports / "scene_assets.json"
 
 st.header("Visual Preview Timeline")
+# Per-scene trim controls use source clip duration and store bounded start/end values.
+trim_ranges = []
+for trim_scene_index, trim_scene in enumerate(scenes, 1):
+    trim_candidates = sorted((workspace_renders / f"final_scene_{trim_scene_index}").glob("*"))
+    trim_candidates = [p for p in trim_candidates if p.is_file() and p.suffix.lower() in {".mp4", ".webm", ".mov"}]
+    if trim_candidates:
+        try:
+            import av
+            with av.open(str(trim_candidates[0])) as trim_container:
+                trim_stream = next((s for s in trim_container.streams if s.type == "video"), None)
+                trim_duration = float(trim_stream.duration * trim_stream.time_base) if trim_stream and trim_stream.duration and trim_stream.time_base else float(trim_container.duration / av.time_base) if trim_container.duration else float(trim_scene.seconds)
+            trim_duration = max(0.1, trim_duration)
+            trim_key = f"trim_{trim_scene_index}"
+            saved_trim = st.session_state.get(trim_key, (0.0, trim_duration))
+            saved_start = min(max(0.0, float(saved_trim[0])), trim_duration)
+            saved_end = min(max(saved_start + 0.1, float(saved_trim[1])), trim_duration)
+            with st.expander(f"Trim Scene {trim_scene_index} · {trim_scene.title}"):
+                trim_start = st.slider("Start offset (seconds)", 0.0, max(0.0, trim_duration-0.1), min(saved_start, trim_duration-0.1), 0.1, key=f"trim_start_{trim_scene_index}")
+                trim_end = st.slider("End offset (seconds)", min(0.1, trim_duration), trim_duration, saved_end, 0.1, key=f"trim_end_{trim_scene_index}")
+                st.session_state[trim_key] = (trim_start, max(trim_start+0.1, trim_end))
+            trim_ranges.append(st.session_state[trim_key])
+        except Exception as trim_error:
+            st.caption(f"Trim controls unavailable for scene {trim_scene_index}: {trim_error}")
+            trim_ranges.append((0.0, None))
+    else:
+        trim_ranges.append((0.0, None))
 timeline_clip_paths = []
 for timeline_index in range(1, len(scenes) + 1):
     candidates = sorted((workspace_renders / f"final_scene_{timeline_index}").glob("*"))
@@ -708,7 +734,7 @@ if workflow_file:
             if not valid_clips:
                 raise RuntimeError("No valid video clips available for final assembly.")
             st.json(assembly_summary(valid_clips, fps, fade_seconds, mixed))
-            final = assemble(valid_clips, workspace_exports / "cineforge_movie_with_sound.mp4", fps, audio_path=mixed, fade_seconds=fade_seconds, target_width=export_config["width"], target_height=export_config["height"], color_grade=color_grade, transition_seconds=transition_seconds)
+            final = assemble(valid_clips, workspace_exports / "cineforge_movie_with_sound.mp4", fps, audio_path=mixed, fade_seconds=fade_seconds, target_width=export_config["width"], target_height=export_config["height"], color_grade=color_grade, transition_seconds=transition_seconds, trim_ranges=trim_ranges)
             validation = validate_final_video(
                 final,
                 expected_width=export_config["width"],
