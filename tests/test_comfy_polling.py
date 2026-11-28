@@ -38,6 +38,23 @@ class ComfyPollingTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "prompt ID"):
             client.wait_for_outputs("", StatusBox())
 
+    def test_submit_rejects_node_validation_errors(self):
+        client = ComfyUI("http://localhost:8188")
+        client._request = lambda path, data=None: __import__("json").dumps({"node_errors": {"7": {"errors": [{"message": "missing model"}]}}}).encode()
+        with self.assertRaisesRegex(RuntimeError, "rejected the workflow"):
+            client.submit({"7": {"class_type": "Sampler", "inputs": {}}})
+
+    def test_submit_requires_prompt_id(self):
+        client = ComfyUI("http://localhost:8188")
+        client._request = lambda path, data=None: b'{}'
+        with self.assertRaisesRegex(RuntimeError, "did not queue"):
+            client.submit({"1": {"class_type": "Test", "inputs": {}}})
+
+    def test_submit_rejects_empty_workflow(self):
+        client = ComfyUI("http://localhost:8188")
+        with self.assertRaisesRegex(ValueError, "non-empty"):
+            client.submit({})
+
 
 if __name__ == "__main__":
     unittest.main()
