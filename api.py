@@ -15,7 +15,7 @@ submitted = {}
 jobs = {}
 lock = threading.Lock()
 OUTPUT_DIR = Path("outputs"); OUTPUT_DIR.mkdir(exist_ok=True)
-DB_PATH = Path("cineforge_jobs.sqlite3")
+DB_PATH = Path("cineforge_jobs.sqlite3")\nlast_worker_seen = None
 
 def now():
     return datetime.now(timezone.utc).isoformat()
@@ -142,7 +142,7 @@ def require_bridge_token(authorization):
     if not expected or not secrets.compare_digest(supplied,expected):
         raise HTTPException(status_code=401,detail="Invalid bridge credentials")
 
-@app.post("/bridge/claim")
+@app.get("/bridge/status")\ndef bridge_status():\n    from datetime import datetime, timezone\n    seen=None\n    age=None\n    if last_worker_seen:\n        seen_dt=datetime.fromisoformat(last_worker_seen)\n        age=max(0,(datetime.now(timezone.utc)-seen_dt).total_seconds())\n    online=age is not None and age < 45\n    return {"enabled":bool(os.getenv("CINEFORGE_FREE_GPU_BRIDGE_TOKEN")),"worker_online":online,"last_seen":last_worker_seen,"seconds_since_heartbeat":age}\n\n@app.post("/bridge/claim")
 def bridge_claim(authorization: str = Header(default="")):
     require_bridge_token(authorization)
     with lock:
