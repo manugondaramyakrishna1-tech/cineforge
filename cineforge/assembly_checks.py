@@ -21,7 +21,11 @@ def validate_clips(clips):
                     checked.append(p)
         except Exception as exc:
             issues.append(f"Clip {i} could not be inspected: {p.name} ({exc})")
-    return checked, issues
+    # Never compact the clip list: scene order and per-scene trim/narration
+    # arrays are positional. Returning a partial list would silently shift edits.
+    if issues:
+        return [], issues
+    return checked, []
 
 
 def assembly_summary(clips, fps, fade_seconds, audio_path=None):
