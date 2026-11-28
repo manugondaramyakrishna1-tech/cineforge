@@ -1,10 +1,11 @@
 streamlit>=1.40.0
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.0
+python-multipart>=0.0.9
 diffusers>=0.32.0
 transformers>=4.45.0
 accelerate>=1.0.0
 safetensors
 imageio
 imageio-ffmpeg
-\nrequests>=2.31.0\n
+requests>=2.31.0
