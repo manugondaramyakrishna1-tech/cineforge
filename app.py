@@ -332,13 +332,23 @@ recovery_cols[1].metric("Complete", recovery_summary["complete"])
 recovery_cols[2].metric("Retrying", recovery_summary["retrying"])
 recovery_cols[3].metric("Failed", recovery_summary["failed"])
 recovery_cols[4].metric("Render attempts", recovery_summary["total_attempts"])
-with st.expander("Scene retry history", expanded=False):
-    for scene_number in range(1, len(scenes) + 1):
+with st.expander("Scene-by-scene render details", expanded=False):
+    for scene_number, scene in enumerate(scenes, 1):
+        render_entry = status_registry.get(str(scene_number), {})
         scene_history = recovery_dashboard.get_scene(scene_number)
-        if scene_history:
-            st.write(f"Scene {scene_number}: {scene_history.get('status', 'unknown')} · {scene_history.get('attempts', 0)} attempts")
-            if scene_history.get("last_error"):
-                st.caption(scene_history["last_error"])
+        render_state = render_entry.get("status", scene_history.get("status", "not started"))
+        detail = render_entry.get("detail", "")
+        attempts = scene_history.get("attempts", 0)
+        st.markdown(f"**Scene {scene_number}: {scene.title}**")
+        detail_cols = st.columns(3)
+        detail_cols[0].write(f"Status: {render_state.title()}")
+        detail_cols[1].write(f"Attempts: {attempts}")
+        detail_cols[2].write(f"Updated: {scene_history.get('updated_at', '—')}")
+        if detail and render_state != "failed":
+            st.caption(detail)
+        last_error = scene_history.get("last_error") or (detail if render_state == "failed" else "")
+        if last_error:
+            st.error(f"Latest error: {last_error}")
 if status_registry:
     status_cols = st.columns(4)
     counts = {state: sum(1 for entry in status_registry.values() if entry.get("status") == state) for state in ["complete", "rendering", "queued", "failed"]}
