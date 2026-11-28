@@ -111,7 +111,11 @@ class LocalCogVideoX:
 
         dtype = torch.float16 if status["device"] == "cuda" else torch.float32
         try:
-            pipe = CogVideoXPipeline.from_pretrained(self.model_id, torch_dtype=dtype)
+            cache_dir = os.environ.get("CINEFORGE_HF_CACHE") or None
+            hf_token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_HUB_TOKEN") or None
+            pipe = CogVideoXPipeline.from_pretrained(
+                self.model_id, torch_dtype=dtype, cache_dir=cache_dir, token=hf_token
+            )
             if status["device"] == "cuda":
                 pipe.enable_model_cpu_offload()
             else:
