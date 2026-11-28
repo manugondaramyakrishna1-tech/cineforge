@@ -11,6 +11,7 @@ from model_pipeline import generate_video, MODEL_ID
 
 app = FastAPI(title="CineForge Video API", version="1.3.0")
 executor = ThreadPoolExecutor(max_workers=1)
+submitted = {}
 jobs = {}
 lock = threading.Lock()
 OUTPUT_DIR = Path("outputs"); OUTPUT_DIR.mkdir(exist_ok=True)
@@ -87,6 +88,14 @@ def worker(job_id, request):
     except Exception as exc:
         update_job(job_id,status="failed",error=str(exc))
 
+def queue_snapshot():
+    queued=sorted((j for j in jobs.values() if j["status"]=="queued"),key=lambda j:j["created_at"])
+    running=next((j for j in jobs.values() if j["status"]=="running"),None)
+    return {"busy":running is not None,"running_job_id":running["job_id"] if running else None,"queued_count":len(queued),"queue":[{"job_id":j["job_id"],"position":i+1} for i,j in enumerate(queued)]}
+
+@app.get("/queue")
+def get_queue(): return queue_snapshot()
+
 @app.get("/health")
 def health(): return gpu_report()
 
@@ -99,7 +108,7 @@ def create_job(request:GenerateRequest):
     j={"job_id":job_id,"prompt":request.prompt,"status":"queued","created_at":stamp,"updated_at":stamp,"output":None,"error":None,"settings":settings}
     with lock: jobs[job_id]=j
     persist(j)
-    executor.submit(worker,job_id,request)
+    submitted[job_id]=executor.submit(worker,job_id,request)
     return {"job_id":job_id,"status":"queued","status_url":f"/jobs/{job_id}"}
 
 @app.get("/jobs")
@@ -112,6 +121,19 @@ def list_jobs(limit:int=50):
         if j["status"]=="completed": j["download_url"]=f"/jobs/{j['job_id']}/video"
         j.pop("output",None); out.append(j)
     return {"jobs":out}
+
+@app.delete("/jobs/{job_id}")
+def cancel_job(job_id:str):
+    with lock:
+        job=jobs.get(job_id)
+        if not job: raise HTTPException(404,detail="Job not found")
+        if job["status"]!="queued": raise HTTPException(409,detail="Only queued jobs can be cancelled")
+        future=submitted.get(job_id)
+        if future and not future.cancel(): raise HTTPException(409,detail="Job has already started")
+        job.update(status="cancelled",error="Cancelled before execution",updated_at=now())
+        snapshot=dict(job)
+    persist(snapshot)
+    return {"job_id":job_id,"status":"cancelled"}
 
 @app.get("/jobs/{job_id}")
 def get_job(job_id:str):
