@@ -29,6 +29,7 @@ The helper checks for the NVIDIA driver tool and PyTorch CUDA detection, then re
 
 ```bash
 pip install -r requirements-local-video.txt
+# optional: set CINEFORGE_HF_CACHE and HF_TOKEN in your environment
 ```
 
 ## Self-hosted video model
