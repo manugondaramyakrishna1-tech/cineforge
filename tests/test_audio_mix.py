@@ -81,5 +81,24 @@ class AudioMixTests(unittest.TestCase):
                              sample_rate=8000, transition_seconds=0.5)
 
 
+    def test_trimmed_scenes_define_audio_timeline_duration(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "trimmed_mix.wav"
+            mix_timeline([None, None], [4.0, 3.0], output,
+                         sample_rate=8000, transition_seconds=0.5,
+                         trim_ranges=[(1.0, 3.0), (0.5, 2.5)])
+            audio, rate = _read_wav(output)
+            self.assertEqual(rate, 8000)
+            self.assertEqual(len(audio), 28000)
+
+    def test_transition_is_validated_against_trimmed_scene_length(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "invalid_trim.wav"
+            with self.assertRaisesRegex(ValueError, "shorter than every trimmed scene"):
+                mix_timeline([None, None], [4.0, 3.0], output,
+                             sample_rate=8000, transition_seconds=1.0,
+                             trim_ranges=[(0.0, 0.5), (0.0, 2.0)])
+
+
 if __name__ == "__main__":
     unittest.main()
