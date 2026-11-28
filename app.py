@@ -345,6 +345,20 @@ for card in scene_cards(scenes):
             st.caption("Narration: " + card["narration"])
 
 st.header("Storyboard editor")
+with st.expander("Timeline ordering — move scenes", expanded=True):
+    for order_index, order_scene in enumerate(scenes):
+        order_cols = st.columns([4, 1, 1])
+        order_cols[0].write(f"{order_index + 1}. {order_scene.title}")
+        if order_cols[1].button("↑", key=f"timeline_up_{order_index}", disabled=order_index == 0):
+            scenes = move_item(scenes, order_index, -1)
+            st.session_state["editable_scenes"] = scenes
+            st.session_state["scene_cache_signature"] = scene_signature
+            st.rerun()
+        if order_cols[2].button("↓", key=f"timeline_down_{order_index}", disabled=order_index >= len(scenes) - 1):
+            scenes = move_item(scenes, order_index, 1)
+            st.session_state["editable_scenes"] = scenes
+            st.session_state["scene_cache_signature"] = scene_signature
+            st.rerun()
 from cineforge.scene_editor_utils import add_scene, duplicate_scene, remove_scene
 scene_action_cols = st.columns(3)
 if scene_action_cols[0].button("➕ Add scene", key="editor_add_scene"):
