@@ -3,13 +3,26 @@ from pathlib import Path
 import json
 from datetime import datetime, timezone
 
-def build_report(validation, *, expected=None, warnings=None):
+def build_report(validation, *, expected=None, warnings=None, quality_gate=None):
     expected = expected or {}
     warnings = list(warnings or [])
+    if quality_gate:
+        for issue in quality_gate.get("issues", []):
+            if issue not in warnings:
+                warnings.append(issue)
     return {
         "status": "PASS" if validation.get("valid") else "FAIL",
+        "publishing_status": (
+            quality_gate.get("status", "UNKNOWN") if quality_gate
+            else "NOT_ASSESSED"
+        ),
+        "ready_to_publish": (
+            bool(quality_gate.get("ready_to_publish", False)) if quality_gate
+            else False
+        ),
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "validation": dict(validation),
+        "quality_gate": dict(quality_gate) if quality_gate else None,
         "expected": dict(expected),
         "warnings": warnings,
     }
@@ -23,7 +36,8 @@ def save_report(report, path):
 def report_markdown(report):
     v=report.get("validation",{})
     lines=["# CineForge Export Validation","",
-           "**Status:** "+str(report.get("status","UNKNOWN")),"",
+           "**Status:** "+str(report.get("status","UNKNOWN")),
+           "**Publishing readiness:** "+str(report.get("publishing_status","NOT_ASSESSED")),"",
            "## Video","",
            f"- Resolution: {v.get('width','?')} × {v.get('height','?')}",
            f"- FPS: {v.get('fps','?')}",
