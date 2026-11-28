@@ -47,6 +47,38 @@ def runtime_status() -> dict[str, Any]:
     }
 
 
+
+
+def gpu_memory_status() -> dict[str, Any]:
+    """Return CUDA memory telemetry when CUDA is visible; never invent GPU access."""
+    try:
+        import torch
+        if not torch.cuda.is_available():
+            return {"available": False, "device": runtime_status().get("device", "unknown")}
+        free, total = torch.cuda.mem_get_info(0)
+        return {"available": True, "device": torch.cuda.get_device_name(0),
+                "free_bytes": int(free), "total_bytes": int(total),
+                "allocated_bytes": int(torch.cuda.memory_allocated(0)),
+                "reserved_bytes": int(torch.cuda.memory_reserved(0))}
+    except Exception as exc:
+        return {"available": False, "error": str(exc)}
+
+
+def cleanup_gpu_memory() -> dict[str, Any]:
+    """Safely release cached CUDA allocations if CUDA is actually available."""
+    try:
+        import gc
+        import torch
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+            return gpu_memory_status()
+        return {"available": False, "message": "CUDA not available; Python garbage collection ran."}
+    except Exception as exc:
+        return {"available": False, "error": str(exc)}
+
+
 class LocalCogVideoX:
     """In-process CogVideoX inference with a small render interface.
 
@@ -148,6 +180,8 @@ class LocalCogVideoX:
         self._pending = None
         if status_box is not None:
             status_box.success(f"Local model generated {len(self._frames)} frames.")
+            if memory_after.get("available"):
+                status_box.caption(f"GPU memory allocated: {memory_after.get('allocated_bytes', 0) / 1024**3:.2f} GiB; reserved: {memory_after.get('reserved_bytes', 0) / 1024**3:.2f} GiB.")
         return {"frames": len(self._frames)}
 
     def download_videos(self, prediction, folder: str | Path) -> list[Path]:
