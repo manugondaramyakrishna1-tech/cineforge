@@ -92,8 +92,8 @@ def gpu_report():
 
 def persist(j):
     with db() as c:
-        c.execute("""INSERT OR REPLACE INTO jobs(job_id,prompt,status,created_at,updated_at,output,error,settings)
-        VALUES(?,?,?,?,?,?,?,?)""",(j["job_id"],j["prompt"],j["status"],j["created_at"],j["updated_at"],j.get("output"),j.get("error"),json.dumps(j["settings"])))
+        c.execute("""INSERT OR REPLACE INTO jobs(job_id,prompt,status,created_at,updated_at,output,error,settings,progress,stage,started_at,elapsed_seconds)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",(j["job_id"],j["prompt"],j["status"],j["created_at"],j["updated_at"],j.get("output"),j.get("error"),json.dumps(j["settings"]),j.get("progress",0),j.get("stage"),j.get("started_at"),j.get("elapsed_seconds")))
 
 def update_job(job_id, **changes):
     with lock:
