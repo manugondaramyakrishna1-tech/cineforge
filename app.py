@@ -95,8 +95,9 @@ with st.expander("Self-hosted video model diagnostics", expanded=True):
             local_job = local_engine.submit(local_request)
             local_status = st.empty()
             local_engine.wait_for_outputs(local_job, local_status)
-            local_test_path = workspace_exports / "local_model_test.mp4"
-            local_videos = local_engine.download_videos({"frames": local_test_frames}, local_test_path.parent)
+            local_test_folder = Path("outputs/local_model_test")
+            local_test_folder.mkdir(parents=True, exist_ok=True)
+            local_videos = local_engine.download_videos({"frames": local_test_frames}, local_test_folder)
             if local_videos:
                 st.video(str(local_videos[0]))
                 st.download_button("Download local test clip", local_videos[0].read_bytes(), file_name="local_model_test.mp4", mime="video/mp4")
