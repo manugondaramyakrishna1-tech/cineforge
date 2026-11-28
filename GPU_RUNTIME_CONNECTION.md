@@ -1,25 +1,26 @@
 # GPU runtime connection checklist
 
-CineForge runs generation on the machine where `api.py` is running. A mobile client can call that API over HTTPS, but it does not supply GPU hardware.
+CineForge executes inference on the host where its API runs. A mobile client does not provide or attach GPU hardware.
 
-## Verify on the actual server
+## Diagnostic
+Use the health endpoint or run:
 ```bash
 python -c "import torch; print(torch.cuda.is_available(), torch.version.cuda); print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'GPU unavailable')"
 ```
+The health endpoint now includes device count and, when CUDA is unavailable, an explanatory hint plus a bounded `nvidia-smi` diagnostic (if the command exists).
 
 ## Host requirements
 - NVIDIA GPU hardware exposed to the host/container.
-- NVIDIA driver installed on the host.
-- CUDA-enabled PyTorch wheel compatible with the host driver.
-- Install the remaining dependencies from requirements.txt.
-- Start the API on the GPU host: `uvicorn api:app --host 0.0.0.0 --port 8000`.
+- NVIDIA driver installed on host and compatible with the CUDA-enabled PyTorch package.
+- GPU passthrough configured by the container/runtime provider.
+- Install project dependencies and start: `uvicorn api:app --host 0.0.0.0 --port 8000`.
 
-Container deployments need GPU passthrough configured by their host administrator. A container/Codespace without GPU passthrough cannot gain GPU access from application code.
+No application code can install, attach or provision physical GPU hardware in a GPU-less environment.
 
 ## API behavior
-- `GET /health` reports CUDA status, build version and memory info when available.
-- `POST /jobs` returns HTTP 503 when CUDA is unavailable, avoiding a queued job that cannot run.
-- When available, generation is executed on the server's GPU.
+- `GET /health`: GPU status, CUDA build, device count and diagnostics.
+- `POST /jobs`: returns 503 if CUDA is not available at submission.
+- Mobile UI includes a refresh button to re-check the runtime.
 
-## Mobile connectivity and security
-Use the server's HTTPS URL in your mobile app. Never expose an unauthenticated generation API to the public internet. Add authentication, request throttling, quota limits, persistent job storage and secure file handling before public deployment. The prototype job store is process-memory only.
+## Security / limitations
+Prototype job records are in-memory, so restarting the server loses job state. Add authentication, quota limits, secure file handling and persistent storage before public deployment.
