@@ -1,2 +1,8 @@
 fastapi
 uvicorn
+torch
+diffusers>=0.30
+transformers
+accelerate
+imageio
+av
