@@ -101,7 +101,7 @@ with st.sidebar:
     transition_seconds = st.slider("Scene crossfade (seconds)", 0.0, 1.5, 0.5, step=0.1, key="transition_seconds")
     fps = st.slider("Final FPS", 12, 60, int(profile["fps"]), key="fps")
 
-from cineforge.video_engine import provider_status, validate_workflow, workflow_prompt_issues
+from cineforge.video_engine import provider_status, validate_workflow, workflow_prompt_issues, render_setup_issues
 with st.expander("Prompt-to-video engine status", expanded=True):
     parsed_workflow = None
     if workflow_file is not None:
@@ -620,7 +620,7 @@ if workflow_file:
         regen_workflow = json.loads(workflow_file.getvalue())
         scene_choice = st.selectbox("Scene to regenerate", list(range(1, len(scenes) + 1)), format_func=lambda n: f"Scene {n}: {scenes[n-1].title}")
         regen_prompt = st.text_area("Regeneration prompt", scenes[scene_choice-1].prompt, key="regen_prompt")
-        if st.button("Render replacement preview"):
+        if st.button("Render replacement preview", disabled=not server.strip()):
             with st.spinner(f"Rendering replacement for scene {scene_choice}..."):
                 regen_engine = ComfyUI(server)
                 chosen = scenes[scene_choice-1]
@@ -662,10 +662,10 @@ if workflow_file:
         workflow = None
         st.error(f"Invalid workflow JSON: {exc}")
     if workflow is not None:
-        prompt_issues = workflow_prompt_issues(workflow)
+        prompt_issues = render_setup_issues(server, workflow)
         for prompt_issue in prompt_issues:
             st.error(prompt_issue)
-    if workflow is not None and not workflow_prompt_issues(workflow) and st.button("🎬 Generate / Resume movie", type="primary"):
+    if workflow is not None and not render_setup_issues(server, workflow) and st.button("🎬 Generate / Resume movie", type="primary"):
         try:
             engine = ComfyUI(server)
             clips = []
