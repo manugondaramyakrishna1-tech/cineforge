@@ -156,6 +156,13 @@ def bridge_status():
     online=age is not None and age < 45
     return {"enabled":bool(os.getenv("CINEFORGE_FREE_GPU_BRIDGE_TOKEN")),"worker_online":online,"last_seen":last_worker_seen,"seconds_since_heartbeat":age}
 
+@app.post("/bridge/heartbeat")
+def bridge_heartbeat(authorization: str = Header(default="")):
+    global last_worker_seen
+    require_bridge_token(authorization)
+    last_worker_seen = now()
+    return {"worker_online": True, "last_seen": last_worker_seen}
+
 @app.post("/bridge/claim")
 def bridge_claim(authorization: str = Header(default="")):
     global last_worker_seen
