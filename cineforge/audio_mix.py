@@ -27,21 +27,32 @@ def _resample(data, src_rate, target_rate):
     new_x = np.linspace(0, len(data)-1, new_len)
     return np.interp(new_x, old_x, data).astype(np.float32)
 
-def mix_timeline(narration_paths, durations, output_wav, soundtrack=None, music_volume=0.18, voice_volume=1.0, sample_rate=44100, fade_seconds=0.0, transition_seconds=0.0):
-    """Place narration at scene starts on a timeline shortened by visual overlaps."""
+def mix_timeline(narration_paths, durations, output_wav, soundtrack=None, music_volume=0.18, voice_volume=1.0, sample_rate=44100, fade_seconds=0.0, transition_seconds=0.0, trim_ranges=None):
+    """Place narration on the edited timeline, respecting each scene's trim range."""
     durations = [float(value) for value in durations]
     if not durations or any(value <= 0 for value in durations):
         raise ValueError("Scene durations must be a non-empty list of positive numbers.")
     if len(narration_paths) != len(durations):
         raise ValueError("Narration tracks and scene durations must have equal lengths.")
+    ranges = list(trim_ranges or [])
+    if ranges and len(ranges) != len(durations):
+        raise ValueError("Trim ranges must match the number of scenes.")
+    effective_durations = []
+    for index, seconds in enumerate(durations):
+        trim_start, trim_end = ranges[index] if ranges else (0.0, None)
+        trim_start = max(0.0, float(trim_start))
+        end = seconds if trim_end is None else min(seconds, max(trim_start, float(trim_end)))
+        effective_durations.append(max(0.0, end - trim_start))
+    if any(value <= 0 for value in effective_durations):
+        raise ValueError("Every trimmed scene must retain a positive duration.")
     overlap = float(transition_seconds)
-    if overlap < 0 or (len(durations) > 1 and overlap >= min(durations)):
-        raise ValueError("Transition duration must be non-negative and shorter than every scene.")
-    total_seconds = sum(durations) - overlap * max(0, len(durations) - 1)
+    if overlap < 0 or (len(effective_durations) > 1 and overlap >= min(effective_durations)):
+        raise ValueError("Transition duration must be non-negative and shorter than every trimmed scene.")
+    total_seconds = sum(effective_durations) - overlap * max(0, len(effective_durations) - 1)
     total = max(1, round(total_seconds * sample_rate))
     mix = np.zeros(total, dtype=np.float32)
     cursor = 0
-    for scene_audio, seconds in zip(narration_paths, durations):
+    for scene_audio, seconds in zip(narration_paths, effective_durations):
         tracks = scene_audio if isinstance(scene_audio, (list, tuple)) else [scene_audio]
         scene_cursor = cursor
         scene_end = min(total, cursor + round(seconds * sample_rate))
