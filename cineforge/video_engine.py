@@ -57,3 +57,35 @@ def validate_workflow(workflow):
     if not workflow:
         return ["Workflow JSON is empty."]
     return []
+
+
+def build_render_batch(scenes, camera_presets, look_presets, style, profile_name, width, height, negative_prompt="", max_scenes=6):
+    """Build a bounded batch payload for the provider adapter; never submits jobs."""
+    bounded = list(scenes)[:max_scenes]
+    if not bounded:
+        raise ValueError("At least one scene is required for a render batch.")
+    return {
+        "provider": "comfyui",
+        "format": {"name": str(profile_name)[:80], "width": int(width), "height": int(height)},
+        "style": str(style)[:200],
+        "scene_count": len(bounded),
+        "scenes": prepare_scene_prompts(bounded, camera_presets, look_presets, style, profile_name, width, height, negative_prompt),
+    }
+
+
+def validate_provider_inputs(server, workflow):
+    """Return human-readable issues for render setup without making network calls."""
+    issues = []
+    url = (server or "").strip()
+    if not url:
+        issues.append("Provider URL is missing.")
+    elif not (url.startswith("http://") or url.startswith("https://")):
+        issues.append("Provider URL must begin with http:// or https://.")
+    issues.extend(validate_workflow(workflow))
+    if isinstance(workflow, dict) and workflow:
+        nodes = workflow.get("nodes")
+        if nodes is not None and not isinstance(nodes, (dict, list)):
+            issues.append("Workflow 'nodes' must be an object or list when present.")
+        if isinstance(nodes, list) and len(nodes) == 0:
+            issues.append("Workflow has an empty nodes list; check that you exported an API workflow.")
+    return issues
