@@ -642,41 +642,29 @@ else:
     st.caption("Render scenes first to enable preview assembly.")
 
 st.header("Regenerate a single scene")
-st.caption("Render a revised scene independently for preview. This does not automatically replace the clip in the final movie checkpoint.")
-if workflow_file:
-    try:
-        regen_workflow = json.loads(workflow_file.getvalue())
-        scene_choice = st.selectbox("Scene to regenerate", list(range(1, len(scenes) + 1)), format_func=lambda n: f"Scene {n}: {scenes[n-1].title}")
-        regen_prompt = st.text_area("Regeneration prompt", scenes[scene_choice-1].prompt, key="regen_prompt")
-        if st.button("Render replacement preview", disabled=(not replicate_token if provider_mode == "Hosted (Replicate)" else not server.strip())):
-            with st.spinner(f"Rendering replacement for scene {scene_choice}..."):
-                regen_engine = ReplicateVideo(replicate_token) if provider_mode == "Hosted (Replicate)" else ComfyUI(server)
-                chosen = scenes[scene_choice-1]
-                final_prompt = regen_prompt + " Camera direction: " + CAMERA_PRESETS[chosen.camera] + f". Color look: {LOOK_PRESETS[look]}. Target format: {profile_name}, {profile['width']}x{profile['height']}."
-                replacements = {"__PROMPT__": final_prompt, "__NEGATIVE__": negative, "__DURATION__": chosen.seconds, "__ASPECT_RATIO__": "9:16" if profile["height"] > profile["width"] else "16:9" if profile["width"] > profile["height"] else "1:1"}
-                regen_wf = ReplicateVideo.replace_placeholders(regen_workflow, replacements)
-                regen_pid = regen_engine.submit(regen_wf)
-                regen_outputs = regen_engine.wait_for_outputs(regen_pid, st)
-                regen_clips = regen_engine.download_videos(regen_outputs, workspace_renders / f"scene_{scene_choice}_replacement_preview")
-                if regen_clips:
-                    st.success("Replacement preview rendered.")
-                    st.info("Choose a replacement to activate it for this scene's final assembly.")
-                    for replacement in regen_clips:
-                        st.video(str(replacement))
-                        st.download_button("Download replacement clip", replacement.read_bytes(), file_name=replacement.name, key=f"regen_download_{replacement.name}")
-                        if st.button(f"Use this clip for Scene {scene_choice}", key=f"activate_scene_{scene_choice}_{replacement.name}"):
-                            try:
-                                register_scene_asset(scene_asset_manifest, scene_choice, replacement, "video", activate=True)
-                                st.success("Replacement registered and selected as active.")
-                                st.rerun()
-                            except Exception as activation_error:
-                                st.error(f"Could not activate replacement: {activation_error}")
-                else:
-                    st.error("No video output was found for the replacement preview.")
-    except Exception as regen_exc:
-        st.error(f"Scene regeneration setup failed: {regen_exc}")
+st.caption("Generate a revised scene locally for preview, without a hosted generation service.")
+if local_state.get("ready", False):
+    scene_choice = st.selectbox("Scene to regenerate", list(range(1, len(scenes) + 1)), format_func=lambda n: f"Scene {n}: {scenes[n-1].title}")
+    regen_prompt = st.text_area("Regeneration prompt", scenes[scene_choice-1].prompt, key="regen_prompt")
+    if st.button("Render replacement preview"):
+        try:
+            from cineforge.local_scene_renderer import render_local_scene
+            chosen = scenes[scene_choice-1]
+            final_prompt = regen_prompt + " Camera direction: " + CAMERA_PRESETS[chosen.camera] + f". Color look: {LOOK_PRESETS[look]}. Target format: {profile_name}, {profile['width']}x{profile['height']}."
+            with st.spinner("Rendering locally..."):
+                regen_clips = render_local_scene(final_prompt, workspace_renders / f"scene_{scene_choice}_replacement_preview", negative_prompt=negative, frames=49, steps=20, fps=fps, status_box=st)
+            st.success("Replacement preview rendered.")
+            for replacement in regen_clips:
+                st.video(str(replacement))
+                st.download_button("Download replacement clip", replacement.read_bytes(), file_name=replacement.name, key=f"regen_download_{replacement.name}")
+                if st.button(f"Use this clip for Scene {scene_choice}", key=f"activate_scene_{scene_choice}_{replacement.name}"):
+                    register_scene_asset(scene_asset_manifest, scene_choice, replacement, "video", activate=True)
+                    st.success("Replacement registered and selected as active.")
+                    st.rerun()
+        except Exception as regen_exc:
+            st.error(f"Local scene render failed: {regen_exc}")
 else:
-    st.info("Upload the selected provider's JSON template/workflow in the sidebar to enable individual scene regeneration.")
+    st.info("Single-scene local rendering requires a supported GPU/accelerator.")
 
 st.markdown('<div id="generate-final-movie"></div>', unsafe_allow_html=True)
 st.header("🎥 Generate final movie — AI video rendering")
