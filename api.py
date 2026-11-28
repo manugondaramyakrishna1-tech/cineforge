@@ -111,7 +111,7 @@ def worker(job_id, request):
         generate_video(request.prompt,str(path),request.model_id,request.frames,request.steps,request.guidance,request.seed,progress_callback=on_step)
         update_job(job_id,status="completed",stage="Complete",progress=100,output=str(path),error=None,elapsed_seconds=round(time.monotonic()-started,1))
     except Exception as exc:
-        update_job(job_id,status="failed",stage="Failed",error=str(exc),elapsed_seconds=round(time.monotonic()-started,1)))
+        update_job(job_id,status="failed",stage="Failed",error=str(exc),elapsed_seconds=round(time.monotonic()-started,1))
 
 def queue_snapshot():
     queued=sorted((j for j in jobs.values() if j["status"]=="queued"),key=lambda j:j["created_at"])
