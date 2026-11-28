@@ -79,5 +79,39 @@ class AssemblyCheckTests(unittest.TestCase):
             self.assertIn("Clip 2 missing", issues[1])
 
 
+    def test_final_video_validator_rejects_missing_video_stream(self):
+        from unittest.mock import MagicMock, patch
+        from cineforge.assembly_checks import validate_final_video
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "audio_only.mp4"
+            output.write_bytes(b"not-empty")
+            container = MagicMock()
+            container.streams = [MagicMock(type="audio")]
+            with patch("av.open") as open_media:
+                open_media.return_value.__enter__.return_value = container
+                with self.assertRaisesRegex(ValueError, "no video stream"):
+                    validate_final_video(output, 1280, 720, 30, require_audio=False)
+
+    def test_final_video_validator_requires_audio_when_requested(self):
+        from unittest.mock import MagicMock, patch
+        from cineforge.assembly_checks import validate_final_video
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "silent_video.mp4"
+            output.write_bytes(b"not-empty")
+            video = MagicMock(type="video", width=1280, height=720,
+                              average_rate=30, base_rate=30,
+                              duration=3000, time_base=1 / 30)
+            container = MagicMock()
+            container.streams = [video]
+            container.duration = 1000000
+            with patch("av.open") as open_media:
+                open_media.return_value.__enter__.return_value = container
+                with self.assertRaisesRegex(ValueError, "no audio stream"):
+                    validate_final_video(output, 1280, 720, 30, require_audio=True)
+
+
+
 if __name__ == "__main__":
     unittest.main()
