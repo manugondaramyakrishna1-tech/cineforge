@@ -82,7 +82,17 @@ with st.expander("Self-hosted video model diagnostics", expanded=True):
     else:
         st.warning("Local video generation is unavailable in this environment. CineForge can still build storyboards and manage project assets; actual local model rendering requires supported GPU hardware.")
     st.caption("This diagnostic does not download model weights or call an external video-generation service.")
-    if st.button("Run detailed GPU diagnostics", key="detailed_gpu_check"):\n        try:\n            from cineforge.gpu_setup import check\n            st.json(check())\n        except Exception as diagnostic_error:\n            st.error(f"GPU diagnostic failed: {diagnostic_error}")
+    if st.button("Run detailed GPU diagnostics", key="detailed_gpu_check"):
+        try:
+            from cineforge.gpu_setup import check
+            diagnostic_report = check()
+            st.json(diagnostic_report)
+            st.subheader("nvidia-smi output")
+            smi_output = diagnostic_report.get("nvidia_smi", "No output")
+            st.code(smi_output, language="text")
+            st.caption("If nvidia-smi reports that it cannot communicate with the NVIDIA driver or is not found, this runtime may not expose NVIDIA GPU hardware.")
+        except Exception as diagnostic_error:
+            st.error(f"GPU diagnostic failed: {diagnostic_error}")
 
     with st.expander("GPU / CUDA troubleshooting", expanded=not local_state.get("ready", False)):
         st.markdown("**If PyTorch says no CUDA device detected:**")
