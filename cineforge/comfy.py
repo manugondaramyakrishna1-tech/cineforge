@@ -44,8 +44,10 @@ class ComfyUI:
                 if isinstance(message, (list, tuple)) and message and str(message[0]).lower() in {'execution_error', 'execution_interrupted'}:
                     details = message[1] if len(message) > 1 else {}
                     raise RuntimeError(f'ComfyUI execution failed: {str(details)[:1200]}')
-            if entry.get('outputs'):
-                return entry['outputs']
+            outputs = entry.get('outputs') if isinstance(entry, dict) else None
+            completed = status.get('completed') is True or str(status.get('status_str', '')).lower() == 'success'
+            if outputs and completed:
+                return outputs
             elapsed = int(time.time() - start)
             caption = f'Generation running · {elapsed}s elapsed · waiting for output…'
             if caption != last_caption:
@@ -54,21 +56,51 @@ class ComfyUI:
             time.sleep(min(poll_interval, max(1, timeout - elapsed)))
         raise TimeoutError(f'ComfyUI timed out after {timeout} seconds. Check the server queue and logs, then retry.')
 
+    @staticmethod
+    def _safe_output_name(filename):
+        """Return a single safe filename; reject paths and unsupported media."""
+        name = str(filename or '')
+        if not name or name in {'.', '..'} or '/' in name or chr(92) in name or chr(0) in name:
+            raise ValueError('ComfyUI returned an unsafe output filename.')
+        suffix = Path(name).suffix.lower()
+        if suffix not in {'.mp4', '.webm', '.mov', '.mkv', '.avi', '.gif'}:
+            raise ValueError(f'Unsupported generated video format: {suffix or "no extension"}')
+        return name
+
     def download_videos(self, outputs, folder):
+        folder = Path(folder).resolve()
         folder.mkdir(parents=True, exist_ok=True)
         saved = []
         for _, node_output in outputs.items():
+            if not isinstance(node_output, dict):
+                continue
             for key in ('videos', 'gifs'):
                 for item in node_output.get(key, []):
-                    filename = item.get('filename')
-                    sub = item.get('subfolder', '')
-                    typ = item.get('type', 'output')
-                    if not filename:
+                    if not isinstance(item, dict):
                         continue
+                    filename = self._safe_output_name(item.get('filename'))
+                    sub = str(item.get('subfolder', '') or '')
+                    typ = str(item.get('type', 'output') or 'output')
                     qs = urllib.parse.urlencode({'filename': filename, 'subfolder': sub, 'type': typ})
-                    with urllib.request.urlopen(self.base + '/view?' + qs, timeout=120) as r:
-                        data = r.read()
+                    with urllib.request.urlopen(self.base + '/view?' + qs, timeout=120) as response:
+                        data = response.read()
+                    if not data:
+                        raise RuntimeError(f'ComfyUI returned an empty video file: {filename}')
                     out = folder / filename
-                    out.write_bytes(data)
+                    if out.exists():
+                        stem, suffix = out.stem, out.suffix
+                        index = 2
+                        while (folder / f'{stem}_{index}{suffix}').exists():
+                            index += 1
+                        out = folder / f'{stem}_{index}{suffix}'
+                    temp = out.with_name(out.name + '.part')
+                    try:
+                        temp.write_bytes(data)
+                        temp.replace(out)
+                    finally:
+                        if temp.exists():
+                            temp.unlink()
+                    if out.parent != folder or not out.is_file() or out.stat().st_size == 0:
+                        raise RuntimeError(f'Generated video could not be saved safely: {filename}')
                     saved.append(out)
         return saved
