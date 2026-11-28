@@ -107,6 +107,13 @@ gallery_dir = workspace_renders
 st.caption(f"Active workspace: {active_workspace}")
 st.json(workspace_manifest)
 
+if st.button("✨ Generate storyboard from my prompt", type="primary"):
+    st.session_state["expanded_prompt"] = expand_story(prompt, scene_count, style, character)
+    st.session_state["prompt_storyboard_ready"] = True
+
+if st.session_state.get("prompt_storyboard_ready"):
+    st.success("Storyboard generated from your prompt. Review the scene prompts below, then use the video render controls when the AI provider is connected.")
+
 if st.button("Expand prompt into cinematic story"):
     st.session_state["expanded_prompt"] = expand_story(prompt, scene_count, style, character)
 story_prompt = st.session_state.get("expanded_prompt", prompt)
