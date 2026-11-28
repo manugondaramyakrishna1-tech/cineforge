@@ -143,8 +143,21 @@ class ReplicateVideo:
             if parsed.scheme != "https" or not any(host == suffix or host.endswith("." + suffix) for suffix in _ALLOWED_FILE_HOSTS):
                 raise ValueError("Hosted model returned a file URL on an untrusted host; refusing to send credentials.")
             request = urllib.request.Request(url, headers={"Authorization": "Bearer " + self.token})
+
+            class SafeOutputRedirect(urllib.request.HTTPRedirectHandler):
+                def redirect_request(self, req, fp, code, msg, headers, newurl):
+                    target = urllib.parse.urlparse(newurl)
+                    if target.scheme != "https":
+                        raise ValueError("Hosted video download redirected to a non-HTTPS URL.")
+                    redirected = super().redirect_request(req, fp, code, msg, headers, newurl)
+                    if redirected is not None and target.hostname != urllib.parse.urlparse(req.full_url).hostname:
+                        redirected.remove_header("Authorization")
+                        redirected.unredirected_hdrs.pop("Authorization", None)
+                    return redirected
+
             try:
-                with urllib.request.urlopen(request, timeout=120) as response:
+                opener = urllib.request.build_opener(SafeOutputRedirect)
+                with opener.open(request, timeout=120) as response:
                     data = response.read()
                     media_type = response.headers.get("Content-Type", "").split(";", 1)[0].lower()
             except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError) as exc:
