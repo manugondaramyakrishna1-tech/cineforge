@@ -33,7 +33,7 @@ from cineforge.export_presets import PRESETS, get_preset
 from cineforge.release_audit import audit_repo, save_audit
 
 
-st.set_page_config(page_title="CineForge AI Studio", page_icon="🎬", layout="wide")
+st.set_page_config(page_title="CineForge AI Studio", page_icon="🎬", layout="centered")
 st.title("🎬 CineForge AI — Production Studio")
 st.caption("Storyboard, scene review, rendering, narration, soundtrack and final MP4. No FFmpeg executable is called.")
 
@@ -45,7 +45,7 @@ prompt = st.text_area(
     key="prompt",
     help="Write the story or scene idea you want CineForge to turn into a cinematic storyboard."
 )
-st.caption("Generation requires a running ComfyUI server and an API workflow file. The storyboard can be created and edited without them.")
+st.caption("Create a storyboard from your idea first. Actual footage rendering requires a connected generation service and compatible workflow.")\n\n# Early defaults prevent engine-status UI from referencing sidebar inputs before they exist.\nserver = ""\nworkflow_file = None\n\nst.markdown("### Quick video settings")\nquick_cols = st.columns(2)\nwith quick_cols[0]:\n    st.selectbox("Format", ["Vertical 9:16", "Landscape 16:9", "Square 1:1"], key="quick_format")\nwith quick_cols[1]:\n    st.selectbox("Length", ["15 seconds", "30 seconds", "60 seconds"], key="quick_length")\nst.caption("Use Generate Video to draft scenes; connect the optional render provider in the sidebar to create footage.")
 
 from cineforge.video_engine import provider_status, validate_workflow
 with st.expander("Prompt-to-video engine status", expanded=True):
@@ -128,12 +128,12 @@ gallery_dir = workspace_renders
 st.caption(f"Active workspace: {active_workspace}")
 st.json(workspace_manifest)
 
-if st.button("✨ Generate storyboard from my prompt", type="primary"):
+if st.button("🎬 Generate Video — create storyboard", type="primary"):
     st.session_state["expanded_prompt"] = expand_story(prompt, scene_count, style, character)
     st.session_state["prompt_storyboard_ready"] = True
 
 if st.session_state.get("prompt_storyboard_ready"):
-    st.success("Storyboard generated from your prompt. Review the scene prompts below, then use the video render controls when the AI provider is connected.")
+    st.success("Storyboard created. Review and edit scenes below. To render actual footage, configure a compatible generation provider and workflow in the sidebar.")
 
 if st.button("Expand prompt into cinematic story"):
     st.session_state["expanded_prompt"] = expand_story(prompt, scene_count, style, character)
