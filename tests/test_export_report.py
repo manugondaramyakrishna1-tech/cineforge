@@ -13,6 +13,28 @@ def test_report_includes_warnings():
     assert report["status"]=="FAIL"
     assert "Optional soundtrack missing" in report_markdown(report)
 
+
+def test_report_includes_quality_gate_and_readiness():
+    gate = {
+        "status": "REVIEW_REQUIRED",
+        "ready_to_publish": False,
+        "score": 75,
+        "issues": ["Audio is mostly silent or quiet."],
+    }
+    report = build_report({"valid": True}, quality_gate=gate)
+    assert report["status"] == "PASS"
+    assert report["publishing_status"] == "REVIEW_REQUIRED"
+    assert report["ready_to_publish"] is False
+    assert "Audio is mostly silent or quiet." in report["warnings"]
+    md = report_markdown(report)
+    assert "Publishing readiness: REVIEW_REQUIRED" in md
+
+def test_report_without_quality_gate_is_not_publish_ready():
+    report = build_report({"valid": True})
+    assert report["publishing_status"] == "NOT_ASSESSED"
+    assert report["ready_to_publish"] is False
+
+
 def test_report_persists_as_valid_json(tmp_path):
     report=build_report({"valid":True,"width":640,"height":360})
     target=save_report(report,tmp_path/"nested"/"report.json")
