@@ -7,7 +7,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 import torch
-from model_pipeline import generate_video, MODEL_ID
+from model_pipeline import generate_video, MODEL_ID, backend_status
 
 app = FastAPI(title="CineForge Video API", version="1.3.0")
 executor = ThreadPoolExecutor(max_workers=1)
@@ -122,12 +122,12 @@ def queue_snapshot():
 def get_queue(): return queue_snapshot()
 
 @app.get("/health")
-def health(): return gpu_report()
+def health():\n    report=gpu_report(); report["backend"]=backend_status(); return report
 
 @app.post("/jobs",status_code=202)
 def create_job(request:GenerateRequest):
     report=gpu_report()
-    if not report["cuda_available"]: raise HTTPException(status_code=503,detail=report["runtime_hint"])
+    if not report["cuda_available"] and not backend_status()["endpoint_configured"]: raise HTTPException(status_code=503,detail=report["runtime_hint"]+" Configure HF_ENDPOINT_URL to use a hosted GPU endpoint.")
     job_id=str(uuid.uuid4()); stamp=now()
     settings=request.model_dump() if hasattr(request,"model_dump") else request.dict()
     j={"job_id":job_id,"prompt":request.prompt,"status":"queued","created_at":stamp,"updated_at":stamp,"output":None,"error":None,"settings":settings,"progress":0,"stage":"Queued","started_at":None,"elapsed_seconds":0}
