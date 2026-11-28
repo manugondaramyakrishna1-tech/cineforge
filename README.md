@@ -17,20 +17,31 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
+## GPU diagnostic helper (included in Python project)
+
+Run this from the repository root:
+
+```bash
+python -m cineforge.gpu_setup
+```
+
+The helper checks for the NVIDIA driver tool and PyTorch CUDA detection, then reports the next steps. It does not install NVIDIA drivers or provision physical GPU hardware. If an NVIDIA GPU is visible but PyTorch lacks CUDA support, install the appropriate PyTorch build using the official selector: https://pytorch.org/get-started/locally/ . After CUDA is ready, install local model dependencies:
+
+```bash
+pip install -r requirements-local-video.txt
+```
+
 ## Self-hosted video model
 
 CineForge's local engine is implemented in `cineforge/local_video.py`. It loads Diffusers' CogVideoX pipeline inside the CineForge Python process and encodes generated frames to MP4 using PyAV. It does not send prompts to Replicate or another video-generation API and does not require ComfyUI.
 
-1. Install the PyTorch build that matches your operating system and CUDA version from the official PyTorch installation selector: https://pytorch.org/get-started/locally/
-2. Install the optional model dependencies:
-   ```bash
-   pip install -r requirements-local-video.txt
-   ```
-3. Ensure the machine has enough GPU memory and disk space for the selected model. The first run downloads model weights and may take a long time.
-4. Set `CINEFORGE_MODEL_ID` to a compatible Diffusers CogVideoX model ID if you are not using the default.
+1. Install a PyTorch build matching your operating system and CUDA version.
+2. Install `requirements-local-video.txt`.
+3. Ensure the machine has sufficient GPU memory and disk space. The first run downloads model weights.
+4. Set `CINEFORGE_MODEL_ID` if using a compatible alternative model.
 5. Start CineForge on the same machine as the GPU.
 
-**Status:** The Streamlit controls and full movie scene loop are now connected to the local engine, including checkpoint resume and retry. Actual generation has not yet been verified on a GPU. Codespaces environments commonly lack a GPU; the app will report not-ready rather than run this model on CPU.
+**Status:** Actual generation still requires testing on compatible GPU hardware. Codespaces environments commonly lack a GPU; the app reports not-ready rather than running the model on CPU.
 
 ## No FFmpeg executable
 
