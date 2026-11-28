@@ -18,7 +18,13 @@ def validate_clips(clips):
                 if stream is None:
                     issues.append(f"Clip {i} has no video stream: {p.name}")
                 else:
-                    checked.append(p)
+                    # Opening a container and finding a stream is not enough:
+                    # truncated/corrupt files can still fail on the first decode.
+                    first_frame = next(container.decode(stream), None)
+                    if first_frame is None:
+                        issues.append(f"Clip {i} contains no decodable video frames: {p.name}")
+                    else:
+                        checked.append(p)
         except Exception as exc:
             issues.append(f"Clip {i} could not be inspected: {p.name} ({exc})")
     # Never compact the clip list: scene order and per-scene trim/narration
