@@ -26,7 +26,24 @@ class VideoEngineTests(unittest.TestCase):
         self.assertIn("wide-angle shot", payload[0]["prompt"])
         self.assertEqual(payload[0]["negative_prompt"], "noise")
 
-    def test_batch_builder_caps_scene_count_and_formats_output(self):\n        scenes = [SimpleNamespace(title=f"Scene {i}", prompt="landscape", camera="wide", seconds=4) for i in range(8)]\n        batch = build_render_batch(scenes, {"wide": "wide shot"}, {}, "cinematic", "Vertical", 1080, 1920, max_scenes=5)\n        self.assertEqual(batch["scene_count"], 5)\n        self.assertEqual(len(batch["scenes"]), 5)\n        self.assertEqual(batch["format"]["width"], 1080)\n\n    def test_provider_input_validation(self):\n        self.assertTrue(validate_provider_inputs("", None))\n        self.assertTrue(validate_provider_inputs("ftp://invalid", {"nodes": []}))\n        self.assertTrue(validate_provider_inputs("http://localhost:8188", {"nodes": []}))\n        self.assertEqual(validate_provider_inputs("http://localhost:8188", {"nodes": [1]}), [])\n\n    def test_scene_duration_clamped(self):
+    def test_batch_builder_caps_scene_count_and_formats_output(self):
+        scenes = [SimpleNamespace(title=f"Scene {i}", prompt="landscape", camera="wide", seconds=4) for i in range(8)]
+        batch = build_render_batch(scenes, {"wide": "wide shot"}, {}, "cinematic", "Vertical", 1080, 1920, max_scenes=5)
+        self.assertEqual(batch["scene_count"], 5)
+        self.assertEqual(len(batch["scenes"]), 5)
+        self.assertEqual(batch["format"]["width"], 1080)
+
+    def test_provider_input_validation(self):
+        self.assertTrue(validate_provider_inputs("", None))
+        self.assertTrue(validate_provider_inputs("ftp://invalid", {"nodes": []}))
+        self.assertTrue(validate_provider_inputs("http://localhost:8188", {"nodes": []}))
+        self.assertEqual(validate_provider_inputs("http://localhost:8188", {"nodes": [1]}), [])
+
+    def test_workflow_must_accept_per_scene_prompt(self):
+        from cineforge.video_engine import workflow_prompt_issues
+        self.assertTrue(workflow_prompt_issues({"1": {"inputs": {"text": "fixed prompt"}}}))
+        self.assertEqual(workflow_prompt_issues({"1": {"inputs": {"text": "__PROMPT__"}}}), [])
+    def test_scene_duration_clamped(self):
         scene = SimpleNamespace(title="Scene", prompt="A landscape", camera="wide", seconds=100)
         payload = prepare_scene_prompts([scene], {}, {}, "style", "preset", 640, 480)
         self.assertEqual(payload[0]["seconds"], 20)
