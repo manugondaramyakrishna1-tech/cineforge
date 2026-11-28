@@ -44,6 +44,18 @@ class ComfyUI:
             raise RuntimeError(f'ComfyUI did not queue the workflow: {str(details)[:1200]}')
         return prompt_id
 
+    @staticmethod
+    def _contains_video_output(value):
+        """Check whether a completed history payload contains downloadable video media."""
+        if isinstance(value, dict):
+            for key in ("videos", "gifs"):
+                items = value.get(key)
+                if isinstance(items, list) and any(isinstance(item, dict) and item.get("filename") for item in items):
+                    return True
+            return any(ComfyUI._contains_video_output(item) for item in value.values())
+        if isinstance(value, list):
+            return any(ComfyUI._contains_video_output(item) for item in value)
+        return False
     def wait_for_outputs(self, prompt_id, status_box, timeout=1800, poll_interval=3):
         """Poll ComfyUI history, surface execution failures and bound waiting time."""
         if not prompt_id:
@@ -63,7 +75,9 @@ class ComfyUI:
                     raise RuntimeError(f'ComfyUI execution failed: {str(details)[:1200]}')
             outputs = entry.get('outputs') if isinstance(entry, dict) else None
             completed = status.get('completed') is True or str(status.get('status_str', '')).lower() == 'success'
-            if outputs and completed:
+            if completed:
+                if not outputs or not self._contains_video_output(outputs):
+                    raise RuntimeError('ComfyUI completed the workflow but returned no downloadable video output. Check that the workflow ends with a video save/output node.')
                 return outputs
             elapsed = int(time.time() - start)
             caption = f'Generation running · {elapsed}s elapsed · waiting for output…'
