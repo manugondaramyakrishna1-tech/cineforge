@@ -22,6 +22,8 @@ def replace_placeholders(value, replacements):
     if isinstance(value, list):
         return [replace_placeholders(item, replacements) for item in value]
     if isinstance(value, str):
+        if value in replacements:
+            return replacements[value]
         for old, new in replacements.items():
             value = value.replace(old, str(new))
     return value
