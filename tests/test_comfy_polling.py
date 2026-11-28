@@ -55,6 +55,16 @@ class ComfyPollingTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "non-empty"):
             client.submit({})
 
+    def test_completed_workflow_without_video_output_fails_clearly(self):
+        client = ComfyUI("http://localhost:8188")
+        payload = {"job-3": {"outputs": {"node": {"images": [{"filename": "frame.png"}]}}, "status": {"completed": True, "status_str": "success"}}}
+        client._request = lambda path: __import__("json").dumps(payload).encode()
+        with self.assertRaisesRegex(RuntimeError, "no downloadable video output"):
+            client.wait_for_outputs("job-3", StatusBox(), timeout=10)
+
+    def test_video_output_can_be_nested_in_history(self):
+        self.assertTrue(ComfyUI._contains_video_output({"node": {"gifs": [{"filename": "movie.gif"}]}})
+        self.assertFalse(ComfyUI._contains_video_output({"node": {"images": [{"filename": "frame.png"}]}})
 
 if __name__ == "__main__":
     unittest.main()
