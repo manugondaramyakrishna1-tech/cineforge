@@ -41,3 +41,36 @@ def update_scene(scenes, index, **changes):
     updated = list(scenes)
     updated[index] = replace(scenes[index], **changes)
     return updated
+
+
+def add_scene(scenes, scene_factory, index=None):
+    """Insert a new scene made by scene_factory; returns a new list."""
+    updated = list(scenes)
+    new_scene = scene_factory()
+    if index is None:
+        updated.append(new_scene)
+    else:
+        if index < 0 or index > len(updated):
+            raise IndexError("Insertion index out of range.")
+        updated.insert(index, new_scene)
+    return updated
+
+
+def duplicate_scene(scenes, index):
+    """Duplicate one scene using dataclass replacement; return a new list."""
+    if index < 0 or index >= len(scenes):
+        raise IndexError("Scene index out of range.")
+    updated = list(scenes)
+    updated.insert(index + 1, replace(scenes[index]))
+    return updated
+
+
+def remove_scene(scenes, index):
+    """Remove a scene; refuse to remove the final remaining scene."""
+    if index < 0 or index >= len(scenes):
+        raise IndexError("Scene index out of range.")
+    if len(scenes) <= 1:
+        raise ValueError("A storyboard must retain at least one scene.")
+    updated = list(scenes)
+    del updated[index]
+    return updated
