@@ -326,6 +326,12 @@ for card in scene_cards(scenes):
             st.caption("Narration: " + card["narration"])
 
 st.header("Storyboard editor")
+from cineforge.scene_editor_utils import add_scene, duplicate_scene, remove_scene
+scene_action_cols = st.columns(3)
+if scene_action_cols[0].button("➕ Add scene", key="editor_add_scene"):
+    scenes = add_scene(scenes, lambda: type(scenes[0])(title="New scene", prompt="Describe the visuals for this scene.", seconds=5, narration="", camera="Tracking shot"))
+    st.session_state.scene_order = list(range(len(scenes)))
+    st.rerun()
 for i, scene in enumerate(scenes, 1):
     with st.expander(f"Scene {i} · {scene.title}", expanded=i == 1):
         scene.title = st.text_input("Scene title", scene.title, key=f"title{i}")
@@ -333,6 +339,15 @@ for i, scene in enumerate(scenes, 1):
         scene.camera = st.selectbox("Camera direction", list(CAMERA_PRESETS), index=list(CAMERA_PRESETS).index(scene.camera), key=f"camera{i}")
         scene.prompt = st.text_area("Video prompt", scene.prompt, key=f"prompt{i}", height=120)
         scene.narration = st.text_area("Narration", scene.narration, key=f"narr{i}")
+        action_cols = st.columns(2)
+        if action_cols[0].button("Duplicate scene", key=f"duplicate_scene_{i}"):
+            scenes = duplicate_scene(scenes, i-1)
+            st.session_state.scene_order = list(range(len(scenes)))
+            st.rerun()
+        if action_cols[1].button("Delete scene", key=f"delete_scene_{i}", disabled=len(scenes) <= 1):
+            scenes = remove_scene(scenes, i-1)
+            st.session_state.scene_order = list(range(len(scenes)))
+            st.rerun()
 
 
 st.header("AI Scene Image Review — technical checks")
