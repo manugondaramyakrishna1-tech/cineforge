@@ -23,9 +23,26 @@ class ComfyUI:
             return r.read()
 
     def submit(self, workflow):
+        """Queue a workflow and reject ComfyUI validation errors immediately."""
+        if not isinstance(workflow, dict) or not workflow:
+            raise ValueError('A non-empty ComfyUI workflow is required.')
         payload = {'prompt': workflow, 'client_id': str(uuid.uuid4())}
-        result = json.loads(self._request('/prompt', payload))
-        return result['prompt_id']
+        try:
+            raw = self._request('/prompt', payload)
+            result = json.loads(raw)
+        except (TypeError, ValueError, json.JSONDecodeError) as exc:
+            raise RuntimeError(f'ComfyUI returned an invalid prompt response: {exc}') from exc
+        if not isinstance(result, dict):
+            raise RuntimeError('ComfyUI returned an unexpected prompt response.')
+        node_errors = result.get('node_errors') or {}
+        if node_errors:
+            details = json.dumps(node_errors, ensure_ascii=False)[:1600]
+            raise RuntimeError(f'ComfyUI rejected the workflow during validation: {details}')
+        prompt_id = result.get('prompt_id')
+        if not isinstance(prompt_id, str) or not prompt_id.strip():
+            details = result.get('error') or result
+            raise RuntimeError(f'ComfyUI did not queue the workflow: {str(details)[:1200]}')
+        return prompt_id
 
     def wait_for_outputs(self, prompt_id, status_box, timeout=1800, poll_interval=3):
         """Poll ComfyUI history, surface execution failures and bound waiting time."""
