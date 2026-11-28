@@ -15,12 +15,12 @@ def load_model(model_id=MODEL_ID):
     return pipeline
 
 def generate_video(prompt, output_path="outputs/video.mp4", model_id=MODEL_ID,
-                   num_frames=25, steps=25, guidance=6.0, seed=42):
+                   num_frames=25, steps=25, guidance=6.0, seed=42, progress_callback=None):
     pipeline = load_model(model_id)
     generator = torch.Generator(device="cuda").manual_seed(seed)
     frames = pipeline(prompt=prompt, num_frames=num_frames,
                       num_inference_steps=steps, guidance_scale=guidance,
-                      generator=generator).frames[0]
+                      generator=generator, callback_on_step_end=(lambda pipe, step, timestep, kwargs: (progress_callback(step + 1, steps) if progress_callback else None, kwargs)[1])).frames[0]
     export_to_video(frames, output_path, fps=8)
     return output_path
 
