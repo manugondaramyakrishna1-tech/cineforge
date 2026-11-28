@@ -7,3 +7,4 @@ accelerate>=1.0.0
 safetensors
 imageio
 imageio-ffmpeg
+\nrequests>=2.31.0\n
