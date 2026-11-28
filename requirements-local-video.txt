@@ -1,0 +1,7 @@
+# Optional dependencies for in-process local text-to-video generation.
+# Install a PyTorch build that matches your CUDA/OS from https://pytorch.org/get-started/locally/
+diffusers>=0.32.0
+transformers>=4.46.0
+accelerate>=1.1.0
+safetensors>=0.4.5
+sentencepiece>=0.2.0
