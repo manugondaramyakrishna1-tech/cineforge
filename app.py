@@ -743,7 +743,7 @@ if workflow_file:
             if music_file:
                 music_path = audio_dir / "uploaded_soundtrack.wav"
                 music_path.write_bytes(music_file.getvalue())
-            mixed = mix_timeline(voices, [scene.seconds for scene in scenes], audio_dir / "movie_mix.wav", music_path, music_volume, voice_volume, fade_seconds=sound_fade, transition_seconds=transition_seconds)
+            mixed = mix_timeline(voices, [scene.seconds for scene in scenes], audio_dir / "movie_mix.wav", music_path, music_volume, voice_volume, fade_seconds=sound_fade, transition_seconds=transition_seconds, trim_ranges=trim_ranges)
             status.info("Assembling and muxing...")
             clips = resolve_scene_videos(scene_asset_manifest, apply_replacements(clips, workspace_reports / "replacements.json"))
             valid_clips, clip_issues = validate_clips(clips)
