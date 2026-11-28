@@ -1,11 +1,11 @@
 """Generate a local AI still and render it as a moving MP4 scene using PyAV."""
 from pathlib import Path
+from fractions import Fraction
 import argparse
 import numpy as np
 import av
 from PIL import Image
 
-from generate_ai_scene import main as _unused  # keep generator dependency visible
 from diffusers import AutoPipelineForText2Image
 import torch
 
@@ -36,6 +36,7 @@ def main():
     container = av.open(str(output), "w")
     stream = container.add_stream("libx264", rate=args.fps)
     stream.width, stream.height, stream.pix_fmt = width, height, "yuv420p"
+    stream.time_base = Fraction(1, args.fps)
     stream.options = {"preset": "medium", "crf": "23"}
     try:
         for i in range(frames):
@@ -47,7 +48,7 @@ def main():
             rgb = np.asarray(frame_image, dtype=np.uint8)
             frame = av.VideoFrame.from_ndarray(rgb, format="rgb24")
             frame.pts = i
-            frame.time_base = stream.time_base
+            frame.time_base = Fraction(1, args.fps)
             for packet in stream.encode(frame):
                 container.mux(packet)
         for packet in stream.encode():
