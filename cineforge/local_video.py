@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 import time
 from pathlib import Path
+from fractions import Fraction
 from typing import Any
 
 
@@ -101,7 +102,12 @@ class LocalCogVideoX:
             "steps": max(1, min(50, int(request.get("steps", 30)))),
             "guidance_scale": float(request.get("guidance_scale", 6.0)),
             "seed": request.get("seed"),
+            "width": max(64, min(1280, int(request.get("width", 720)))),
+            "height": max(64, min(1280, int(request.get("height", 480)))),
         }
+        # H.264 yuv420p requires even dimensions.
+        self._pending["width"] -= self._pending["width"] % 2
+        self._pending["height"] -= self._pending["height"] % 2
         self._frames = None
         self._output_size = (self._pending["width"], self._pending["height"])
         return str(int(time.time() * 1000))
@@ -127,6 +133,8 @@ class LocalCogVideoX:
                 num_frames=self._pending["num_frames"],
                 num_inference_steps=self._pending["steps"],
                 guidance_scale=self._pending["guidance_scale"],
+                width=self._pending["width"],
+                height=self._pending["height"],
                 generator=generator,
             )
         except Exception as exc:
@@ -149,6 +157,7 @@ class LocalCogVideoX:
         try:
             import av
             import numpy as np
+            from PIL import Image, ImageOps
         except ImportError as exc:
             raise RuntimeError("PyAV and NumPy are required to encode the local video.") from exc
 
@@ -164,10 +173,14 @@ class LocalCogVideoX:
             stream.width = width
             stream.height = height
             stream.pix_fmt = "yuv420p"
-            for image in self._frames:
+            stream.time_base = Fraction(1, self.output_fps)
+            stream.options = {"preset": "medium", "crf": "23"}
+            for frame_index, image in enumerate(self._frames):
                 image = ImageOps.fit(image.convert("RGB"), (width, height), method=Image.Resampling.LANCZOS)
                 array = np.asarray(image)
                 frame = av.VideoFrame.from_ndarray(array, format="rgb24")
+                frame.pts = frame_index
+                frame.time_base = Fraction(1, self.output_fps)
                 for packet in stream.encode(frame):
                     container.mux(packet)
             for packet in stream.encode():
