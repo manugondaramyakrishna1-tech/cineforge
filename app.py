@@ -90,6 +90,8 @@ with st.expander("Self-hosted video model diagnostics", expanded=True):
             st.subheader("nvidia-smi output")
             smi_output = diagnostic_report.get("nvidia_smi", "No output")
             st.code(smi_output, language="text")
+            st.subheader("Detected device")
+            st.write(diagnostic_report.get("device", diagnostic_report.get("gpu_details", "Device information unavailable")))
             st.caption("If nvidia-smi reports that it cannot communicate with the NVIDIA driver or is not found, this runtime may not expose NVIDIA GPU hardware.")
         except Exception as diagnostic_error:
             st.error(f"GPU diagnostic failed: {diagnostic_error}")
