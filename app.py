@@ -83,6 +83,28 @@ with st.expander("Self-hosted video model diagnostics", expanded=True):
         st.warning("Local video generation is unavailable in this environment. CineForge can still build storyboards and manage project assets; actual local model rendering requires supported GPU hardware.")
     st.caption("This diagnostic does not download model weights or call an external video-generation service.")
 
+    st.markdown("#### Local model clip test")
+    local_test_prompt = st.text_area("Test prompt", "A cinematic aerial view of a misty mountain valley at sunrise", key="local_test_prompt")
+    local_test_frames = st.slider("Test clip frames", 9, 49, 17, step=4, key="local_test_frames")
+    local_test_steps = st.slider("Inference steps", 1, 30, 10, key="local_test_steps")
+    if st.button("Generate local test clip", disabled=not local_state.get("ready", False)):
+        try:
+            from cineforge.local_video import LocalCogVideoX
+            local_engine = LocalCogVideoX()
+            local_request = {"prompt": local_test_prompt, "num_frames": local_test_frames, "steps": local_test_steps}
+            local_job = local_engine.submit(local_request)
+            local_status = st.empty()
+            local_engine.wait_for_outputs(local_job, local_status)
+            local_test_path = workspace_exports / "local_model_test.mp4"
+            local_videos = local_engine.download_videos({"frames": local_test_frames}, local_test_path.parent)
+            if local_videos:
+                st.video(str(local_videos[0]))
+                st.download_button("Download local test clip", local_videos[0].read_bytes(), file_name="local_model_test.mp4", mime="video/mp4")
+        except Exception as local_test_error:
+            st.error(f"Local test render failed: {local_test_error}")
+    if not local_state.get("ready", False):
+        st.caption("Test button is disabled until a supported GPU/accelerator is detected.")
+
 with st.sidebar:
     st.subheader("AI video generation provider")
     provider_mode = st.radio(
