@@ -23,6 +23,11 @@ def check():
                   if key.startswith(("CUDA", "NVIDIA"))}}
     smi = _run(["nvidia-smi"])
     report["nvidia_smi"] = smi["stdout"] or smi["stderr"] or "No output"
+    if smi["returncode"] is None and "FileNotFoundError" in smi["stderr"] or "No such file or directory" in smi["stderr"]:
+        report["nvidia_smi_status"] = "nvidia-smi command is not installed or not available on PATH in this environment."
+        report["nvidia_smi"] = report["nvidia_smi_status"]
+    elif smi["returncode"] != 0:
+        report["nvidia_smi_status"] = "nvidia-smi exists but failed to run successfully."
     report["driver_visible"] = smi["returncode"] == 0
     query = _run(["nvidia-smi", "--query-gpu=name,driver_version,memory.total", "--format=csv,noheader"])
     report["gpu_details"] = query["stdout"] if query["returncode"] == 0 else query["stderr"]
