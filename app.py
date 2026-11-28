@@ -95,8 +95,19 @@ with st.expander("Self-hosted video model diagnostics", expanded=True):
             st.caption("If nvidia-smi reports that it cannot communicate with the NVIDIA driver or is not found, this runtime may not expose NVIDIA GPU hardware.")
             if diagnostic_report.get("nvidia_smi_status") or "not installed" in str(smi_output).lower() or "not available on path" in str(smi_output).lower():
                 st.error("NVIDIA GPU tools are not detected in this runtime.")
-                st.markdown("**GPU setup checklist**")
-                st.markdown("- Confirm the machine has NVIDIA GPU hardware.\\n- Install the NVIDIA driver for the operating system and restart.\\n- Confirm nvidia-smi works in a system terminal.\\n- Use a GPU-enabled runtime/container and expose the GPU to it.\\n- Install a CUDA-compatible PyTorch build only after the driver/GPU is visible.")
+                st.markdown("**Platform-specific GPU setup**")
+                detected_platform = str(diagnostic_report.get("platform", "")).lower()
+                if "windows" in detected_platform:
+                    st.markdown("**Windows:** install the NVIDIA driver, restart, then open a fresh terminal and rerun this check.")
+                    st.markdown("[Official NVIDIA driver downloads](https://www.nvidia.com/en-us/drivers/")
+                elif "linux" in detected_platform:
+                    st.markdown("**Linux:** use the distribution-recommended driver installer and restart. Ubuntu documents the Additional Drivers app and `ubuntu-drivers` method.")
+                    st.markdown("[Ubuntu driver guidance](https://ubuntu.com/desktop/docs/en/latest/how-to/graphics/install-nvidia-drivers/)")
+                elif "darwin" in detected_platform or "mac" in detected_platform:
+                    st.markdown("**macOS:** CUDA-based NVIDIA inference is generally not supported on modern macOS systems.")
+                else:
+                    st.markdown("**Other or container runtime:** verify GPU hardware and driver availability on the host and ensure the runtime exposes the GPU.")
+                st.markdown("**Verification commands**")
                 st.code('nvidia-smi\\npython -c "import torch; print(torch.cuda.is_available()); print(torch.cuda.device_count())"', language="bash")
                 st.info("CineForge cannot install system-level GPU drivers or grant GPU access from inside the app. This panel reports and guides setup; it does not fake GPU availability.")
         except Exception as diagnostic_error:
