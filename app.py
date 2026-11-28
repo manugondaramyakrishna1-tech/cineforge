@@ -45,28 +45,19 @@ prompt = st.text_area(
     key="prompt",
     help="Write the story or scene idea you want CineForge to turn into a cinematic storyboard."
 )
-st.caption("Create a storyboard from your idea first. Actual footage rendering requires a connected generation service and compatible workflow.")\n\n# Early defaults prevent engine-status UI from referencing sidebar inputs before they exist.\nserver = ""\nworkflow_file = None\n\nst.markdown("### Quick video settings")\nquick_cols = st.columns(2)\nwith quick_cols[0]:\n    st.selectbox("Format", ["Vertical 9:16", "Landscape 16:9", "Square 1:1"], key="quick_format")\nwith quick_cols[1]:\n    st.selectbox("Length", ["15 seconds", "30 seconds", "60 seconds"], key="quick_length")\nst.caption("Use Generate Video to draft scenes; connect the optional render provider in the sidebar to create footage.")
+st.caption("Create a storyboard from your idea first. Actual footage rendering requires a connected generation service and compatible workflow.")
 
-from cineforge.video_engine import provider_status, validate_workflow
-with st.expander("Prompt-to-video engine status", expanded=True):
-    parsed_workflow = None
-    if workflow_file is not None:
-        try:
-            parsed_workflow = json.loads(workflow_file.getvalue())
-        except Exception:
-            parsed_workflow = None
-    engine_state = provider_status(server, parsed_workflow)
-    if engine_state.ready:
-        st.info(engine_state.message)
-    else:
-        st.warning(engine_state.message)
-    if parsed_workflow is not None:
-        workflow_issues = validate_workflow(parsed_workflow)
-        if workflow_issues:
-            for issue in workflow_issues:
-                st.error(issue)
-        else:
-            st.caption("Workflow JSON structure is non-empty. Node compatibility is only confirmed during an actual render.")
+# Early defaults prevent engine-status UI from referencing sidebar inputs before they exist.
+server = ""
+workflow_file = None
+
+st.markdown("### Quick video settings")
+quick_cols = st.columns(2)
+with quick_cols[0]:
+    st.selectbox("Format", ["Vertical 9:16", "Landscape 16:9", "Square 1:1"], key="quick_format")
+with quick_cols[1]:
+    st.selectbox("Length", ["15 seconds", "30 seconds", "60 seconds"], key="quick_length")
+st.caption("Use Generate Video to draft scenes; connect the optional render provider in the sidebar to create footage.")
 
 with st.expander("Release readiness audit"):
     audit = audit_repo(".")
@@ -109,6 +100,28 @@ with st.sidebar:
     fade_seconds = st.slider("Fade duration (seconds)", 0.0, 2.0, 0.5, step=0.1, key="fade_seconds")
     transition_seconds = st.slider("Scene crossfade (seconds)", 0.0, 1.5, 0.5, step=0.1, key="transition_seconds")
     fps = st.slider("Final FPS", 12, 60, int(profile["fps"]), key="fps")
+
+from cineforge.video_engine import provider_status, validate_workflow
+with st.expander("Prompt-to-video engine status", expanded=True):
+    parsed_workflow = None
+    if workflow_file is not None:
+        try:
+            parsed_workflow = json.loads(workflow_file.getvalue())
+        except Exception:
+            parsed_workflow = None
+    engine_state = provider_status(server, parsed_workflow)
+    if engine_state.ready:
+        st.info(engine_state.message)
+    else:
+        st.warning(engine_state.message)
+    if parsed_workflow is not None:
+        workflow_issues = validate_workflow(parsed_workflow)
+        if workflow_issues:
+            for issue in workflow_issues:
+                st.error(issue)
+        else:
+            st.caption("Workflow JSON structure is non-empty. Node compatibility is only confirmed during an actual render.")
+
 
 st.header("Project Workspace Isolation")
 from cineforge.project_workspace import initialize_workspace, read_manifest
@@ -449,7 +462,12 @@ for trim_scene_index, trim_scene in enumerate(scenes, 1):
             trim_ranges.append((0.0, None))
     else:
         trim_ranges.append((0.0, None))
-from cineforge.trim_timeline import calculate_trimmed_duration, trim_summary\ntrimmed_duration = calculate_trimmed_duration([scene.seconds for scene in scenes], trim_ranges, transition_seconds)\nst.info(f"Trim-adjusted movie duration estimate: {trimmed_duration:.1f} seconds")\nwith st.expander("Trim-adjusted timeline summary"):\n    st.json(trim_summary([scene.title for scene in scenes], [scene.seconds for scene in scenes], trim_ranges, transition_seconds))\ntimeline_clip_paths = []
+from cineforge.trim_timeline import calculate_trimmed_duration, trim_summary
+trimmed_duration = calculate_trimmed_duration([scene.seconds for scene in scenes], trim_ranges, transition_seconds)
+st.info(f"Trim-adjusted movie duration estimate: {trimmed_duration:.1f} seconds")
+with st.expander("Trim-adjusted timeline summary"):
+    st.json(trim_summary([scene.title for scene in scenes], [scene.seconds for scene in scenes], trim_ranges, transition_seconds))
+timeline_clip_paths = []
 for timeline_index in range(1, len(scenes) + 1):
     candidates = sorted((workspace_renders / f"final_scene_{timeline_index}").glob("*"))
     candidates = [path for path in candidates if path.is_file() and path.suffix.lower() in {".mp4", ".webm", ".mov"}]
