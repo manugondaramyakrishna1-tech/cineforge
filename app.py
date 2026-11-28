@@ -77,6 +77,21 @@ with st.expander("Self-hosted video model diagnostics", expanded=True):
     from cineforge.local_video import runtime_status
     local_state = runtime_status()
     st.json(local_state)
+    try:
+        from cineforge.local_video import gpu_memory_status, cleanup_gpu_memory
+        memory_status = gpu_memory_status()
+        if memory_status.get("available"):
+            st.metric("GPU", memory_status.get("device", "CUDA"))
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Free VRAM", f'{memory_status.get("free_bytes", 0) / 1024**3:.2f} GiB')
+            m2.metric("Allocated", f'{memory_status.get("allocated_bytes", 0) / 1024**3:.2f} GiB')
+            m3.metric("Reserved", f'{memory_status.get("reserved_bytes", 0) / 1024**3:.2f} GiB')
+        else:
+            st.caption("GPU memory telemetry unavailable: " + str(memory_status.get("error", memory_status.get("device", "no CUDA device"))))
+        if st.button("Release unused GPU memory", key="cleanup_gpu_memory"):
+            st.json(cleanup_gpu_memory())
+    except Exception as memory_ui_error:
+        st.caption(f"GPU telemetry could not be loaded: {memory_ui_error}")
     if local_state.get("ready"):
         st.success("GPU/accelerator detected. Local model inference can be configured on this machine.")
     else:
@@ -99,7 +114,7 @@ with st.expander("Self-hosted video model diagnostics", expanded=True):
                 detected_platform = str(diagnostic_report.get("platform", "")).lower()
                 if "windows" in detected_platform:
                     st.markdown("**Windows:** install the NVIDIA driver, restart, then open a fresh terminal and rerun this check.")
-                    st.markdown("[Official NVIDIA driver downloads](https://www.nvidia.com/en-us/drivers/")
+                    st.markdown("[Official NVIDIA driver downloads](https://www.nvidia.com/en-us/drivers/)
                 elif "linux" in detected_platform:
                     st.markdown("**Linux:** use the distribution-recommended driver installer and restart. Ubuntu documents the Additional Drivers app and `ubuntu-drivers` method.")
                     st.markdown("[Ubuntu driver guidance](https://ubuntu.com/desktop/docs/en/latest/how-to/graphics/install-nvidia-drivers/)")
