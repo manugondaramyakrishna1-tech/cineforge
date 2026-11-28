@@ -310,6 +310,20 @@ if st.session_state.get("restored_project"):
 
 st.header("Render status dashboard")
 status_registry = read_registry(workspace_reports / "render_status.json")
+recovery_dashboard = SceneRecoveryStore(workspace_reports / "scene_recovery.json")
+recovery_summary = recovery_dashboard.summary()
+recovery_cols = st.columns(4)
+recovery_cols[0].metric("Tracked scenes", recovery_summary["scene_count"])
+recovery_cols[1].metric("Recovered / complete", recovery_summary["complete"])
+recovery_cols[2].metric("Failed", recovery_summary["failed"])
+recovery_cols[3].metric("Render attempts", recovery_summary["total_attempts"])
+with st.expander("Scene retry history", expanded=False):
+    for scene_number in range(1, len(scenes) + 1):
+        scene_history = recovery_dashboard.get_scene(scene_number)
+        if scene_history:
+            st.write(f"Scene {scene_number}: {scene_history.get('status', 'unknown')} · {scene_history.get('attempts', 0)} attempts")
+            if scene_history.get("last_error"):
+                st.caption(scene_history["last_error"])
 if status_registry:
     status_cols = st.columns(4)
     counts = {state: sum(1 for entry in status_registry.values() if entry.get("status") == state) for state in ["complete", "rendering", "queued", "failed"]}
@@ -607,6 +621,10 @@ if workflow_file:
                 except Exception:
                     completed, clips = [], []
             recovery_store = SceneRecoveryStore(workspace_reports / "scene_recovery.json")
+            for queue_index, queue_scene in enumerate(scenes, 1):
+                if queue_index not in completed:
+                    set_scene_status(workspace_reports / "render_status.json", queue_index, "queued", queue_scene.title)
+                    recovery_store.record(queue_index, "queued")
             for i, scene in enumerate(scenes, 1):
                 if i in completed:
                     if recovery_store.get_scene(i).get("status") != "complete":
@@ -629,7 +647,12 @@ if workflow_file:
                 def show_retry_attempt(attempt, maximum):
                     status.info(f"Rendering scene {i}/{len(scenes)} — attempt {attempt}/{maximum}")
 
-                videos = recovery_store.run_with_retry(i, render_scene, max_attempts=3, delay_seconds=2, on_attempt=show_retry_attempt)
+                try:
+                    videos = recovery_store.run_with_retry(i, render_scene, max_attempts=3, delay_seconds=2, on_attempt=show_retry_attempt)
+                except Exception as scene_error:
+                    set_scene_status(workspace_reports / "render_status.json", i, "failed", str(scene_error))
+                    status.error(f"Scene {i} failed after retries. Check the recovery report and retry this scene.")
+                    raise
                 clips.extend(videos)
                 set_scene_status(workspace_reports / "render_status.json", i, "complete", scene.title)
                 completed.append(i)
