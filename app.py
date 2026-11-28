@@ -449,7 +449,7 @@ for trim_scene_index, trim_scene in enumerate(scenes, 1):
             trim_ranges.append((0.0, None))
     else:
         trim_ranges.append((0.0, None))
-timeline_clip_paths = []
+from cineforge.trim_timeline import calculate_trimmed_duration, trim_summary\ntrimmed_duration = calculate_trimmed_duration([scene.seconds for scene in scenes], trim_ranges, transition_seconds)\nst.info(f"Trim-adjusted movie duration estimate: {trimmed_duration:.1f} seconds")\nwith st.expander("Trim-adjusted timeline summary"):\n    st.json(trim_summary([scene.title for scene in scenes], [scene.seconds for scene in scenes], trim_ranges, transition_seconds))\ntimeline_clip_paths = []
 for timeline_index in range(1, len(scenes) + 1):
     candidates = sorted((workspace_renders / f"final_scene_{timeline_index}").glob("*"))
     candidates = [path for path in candidates if path.is_file() and path.suffix.lower() in {".mp4", ".webm", ".mov"}]
