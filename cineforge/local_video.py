@@ -103,6 +103,7 @@ class LocalCogVideoX:
             "seed": request.get("seed"),
         }
         self._frames = None
+        self._output_size = (self._pending["width"], self._pending["height"])
         return str(int(time.time() * 1000))
 
     def wait_for_outputs(self, job_id: str, status_box=None, timeout: int = 3600):
@@ -164,7 +165,8 @@ class LocalCogVideoX:
             stream.height = height
             stream.pix_fmt = "yuv420p"
             for image in self._frames:
-                array = np.asarray(image.convert("RGB"))
+                image = ImageOps.fit(image.convert("RGB"), (width, height), method=Image.Resampling.LANCZOS)
+                array = np.asarray(image)
                 frame = av.VideoFrame.from_ndarray(array, format="rgb24")
                 for packet in stream.encode(frame):
                     container.mux(packet)
