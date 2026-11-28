@@ -826,7 +826,10 @@ if workflow_file:
                 file_name="cineforge_export_report.json",
                 mime="application/json",
             )
-            status.success("Movie export finished.")
+            if gate_result["ready_to_publish"]:
+                status.success("Movie export finished and passed the publishing quality gate.")
+            else:
+                status.warning("Movie export completed, but publishing checks require review. See the quality gate report before publishing.")
             st.video(str(final))
             st.download_button("Download final MP4", final.read_bytes(), file_name="cineforge_movie.mp4", mime="video/mp4")
             st.audio(mixed.read_bytes(), format="audio/wav")
