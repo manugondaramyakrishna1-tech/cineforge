@@ -48,7 +48,7 @@ prompt = st.text_area(
     help="Write the story or scene idea you want CineForge to turn into a cinematic storyboard."
 )
 st.caption("Step 1: create and review your storyboard. Step 2: generate actual scene footage using hosted AI video generation or your own ComfyUI server.")
-st.markdown("**Ready to render actual video?** Configure ComfyUI in the sidebar, then jump to [Generate final movie ↓](#generate-final-movie).")
+st.markdown("**Ready to render actual video?** Choose Hosted (Replicate) or ComfyUI in the sidebar, then jump to [Generate final movie ↓](#generate-final-movie).")
 
 # Early defaults prevent engine-status UI from referencing sidebar inputs before they exist.
 server = ""
@@ -692,7 +692,7 @@ if workflow_file:
     except Exception as regen_exc:
         st.error(f"Scene regeneration setup failed: {regen_exc}")
 else:
-    st.info("Upload your ComfyUI workflow JSON in the sidebar to enable individual scene regeneration.")
+    st.info("Upload the selected provider's JSON template/workflow in the sidebar to enable individual scene regeneration.")
 
 st.markdown('<div id="generate-final-movie"></div>', unsafe_allow_html=True)
 st.header("🎥 Generate final movie — AI video rendering")
