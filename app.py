@@ -686,15 +686,25 @@ if workflow_file:
             progress = st.progress(0)
             checkpoint_path = workspace_checkpoints / "cineforge_checkpoint.json"
             completed = []
+            scene_clip_paths = {}
             if checkpoint_path.exists():
                 try:
                     previous = load_checkpoint(checkpoint_path)
                     if previous.get("project_prompt") == story_prompt:
-                        completed = previous.get("completed_scene_indices", [])
-                        clips = [Path(p) for p in previous.get("clip_paths", []) if Path(p).exists()]
-                        status.info(f"Resuming checkpoint: {len(completed)} scene(s) already saved.")
-                except Exception:
-                    completed, clips = [], []
+                        saved_scene_clips = previous.get("scene_clip_paths")
+                        if isinstance(saved_scene_clips, dict):
+                            for scene_key, paths in saved_scene_clips.items():
+                                scene_number = int(scene_key)
+                                valid_paths = [Path(p) for p in paths if Path(p).is_file() and Path(p).stat().st_size > 0]
+                                if 1 <= scene_number <= len(scenes) and valid_paths and len(valid_paths) == len(paths):
+                                    scene_clip_paths[scene_number] = valid_paths
+                            completed = sorted(scene_clip_paths)
+                            clips = [path for scene_number in completed for path in scene_clip_paths[scene_number]]
+                            status.info(f"Resuming checkpoint: {len(completed)} scene(s) have verified saved clips.")
+                        else:
+                            status.warning("Older checkpoint has no per-scene clip map; starting a safe render rather than skipping scenes with missing footage.")
+                except (OSError, TypeError, ValueError, KeyError):
+                    completed, clips, scene_clip_paths = [], [], {}
             recovery_store = SceneRecoveryStore(workspace_reports / "scene_recovery.json")
             for queue_index, queue_scene in enumerate(scenes, 1):
                 if queue_index not in completed:
@@ -728,11 +738,12 @@ if workflow_file:
                     set_scene_status(workspace_reports / "render_status.json", i, "failed", str(scene_error))
                     status.error(f"Scene {i} failed after retries. Check the recovery report and retry this scene.")
                     raise
-                clips.extend(videos)
+                scene_clip_paths[i] = [Path(video) for video in videos]
+                clips = [path for scene_number in sorted(scene_clip_paths) for path in scene_clip_paths[scene_number]]
                 set_scene_status(workspace_reports / "render_status.json", i, "complete", scene.title)
                 completed.append(i)
                 progress.progress(i / len(scenes))
-                save_checkpoint(checkpoint_path, story_prompt, scenes, completed, clips)
+                save_checkpoint(checkpoint_path, story_prompt, scenes, completed, clips, scene_clip_paths=scene_clip_paths)
             status.info("Generating narration...")
             audio_dir = workspace_audio
             audio_dir.mkdir(parents=True, exist_ok=True)
