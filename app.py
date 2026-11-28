@@ -669,27 +669,13 @@ else:
 st.markdown('<div id="generate-final-movie"></div>', unsafe_allow_html=True)
 st.header("🎥 Generate final movie — AI video rendering")
 st.caption(f"Final MP4 will be resized to {export_config['width']} × {export_config['height']} at {fps} FPS during assembly.")
-if provider_mode == "ComfyUI (self-hosted)" and not server.strip():
-    st.warning("Connect a private ComfyUI server in the sidebar to enable self-hosted rendering.")
-if provider_mode == "Hosted (Replicate)" and not replicate_token:
-    st.warning("Configure REPLICATE_API_TOKEN on the CineForge server to enable hosted rendering. Keep the token private.")
-if not workflow_file:
-    st.warning("Upload the selected provider's JSON template/workflow in the sidebar to enable the Generate / Resume movie button.")
-if workflow_file:
-    try:
-        workflow = json.loads(workflow_file.getvalue())
-    except Exception as exc:
-        workflow = None
-        st.error(f"Invalid workflow JSON: {exc}")
-    if workflow is not None:
-        prompt_issues = validate_hosted_workflow(workflow) if provider_mode == "Hosted (Replicate)" else render_setup_issues(server, workflow)
-        if provider_mode == "Hosted (Replicate)" and not replicate_token:
-            prompt_issues.append("REPLICATE_API_TOKEN is missing from the server environment or Streamlit secrets.")
-        for prompt_issue in prompt_issues:
-            st.error(prompt_issue)
-    if workflow is not None and not prompt_issues and st.button("🎬 Generate / Resume movie", type="primary"):
+if not local_state.get("ready", False):
+    st.warning("Local movie rendering is unavailable until a supported GPU/accelerator and dependencies are configured.")
+if local_state.get("ready", False):
+    if st.button("🎬 Generate / Resume movie", type="primary"):
         try:
-            engine = ReplicateVideo(replicate_token) if provider_mode == "Hosted (Replicate)" else ComfyUI(server)
+            from cineforge.local_video_provider import LocalVideoProvider
+            engine = LocalVideoProvider(fps=8)
             clips = []
             status = st.empty()
             progress = st.progress(0)
@@ -726,8 +712,7 @@ if workflow_file:
                     progress.progress(min(1.0, len(completed) / len(scenes)))
                     continue
                 scene_prompt = scene.prompt + " Camera direction: " + CAMERA_PRESETS[scene.camera] + f". Color look: {LOOK_PRESETS[look]}. Target format: {profile_name}, {profile['width']}x{profile['height']}."
-                replacements = {"__PROMPT__": scene_prompt, "__NEGATIVE__": negative, "__DURATION__": scene.seconds, "__ASPECT_RATIO__": "9:16" if profile["height"] > profile["width"] else "16:9" if profile["width"] > profile["height"] else "1:1"}
-                wf = ReplicateVideo.replace_placeholders(workflow, replacements)
+                wf = {"prompt": scene_prompt, "negative_prompt": negative, "num_frames": 49, "steps": 20, "guidance_scale": 6.0}
 
                 def render_scene():
                     set_scene_status(workspace_reports / "render_status.json", i, "rendering", scene.title)
@@ -868,6 +853,6 @@ if workflow_file:
         except Exception as exc:
             st.error(f"Movie pipeline failed: {exc}")
 else:
-    st.info("Upload a provider template to enable AI scene generation. Hosted mode requires a server-side REPLICATE_API_TOKEN and a model-specific input template; ComfyUI mode requires your own reachable server. Storyboard, project library, timeline, scene review, narration tools and asset management remain available without either provider.")
+    st.info("Local full-movie rendering requires a supported GPU/accelerator. Storyboard, project library, timeline, scene review, narration tools and asset management remain available.")
 
 st.caption("Hosted mode uses a third-party video model API and may incur usage charges. Store credentials only in server environment variables or Streamlit secrets. PyAV may use FFmpeg libraries internally, but CineForge does not invoke the FFmpeg executable.")
