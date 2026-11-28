@@ -27,16 +27,32 @@ class ComfyUI:
         result = json.loads(self._request('/prompt', payload))
         return result['prompt_id']
 
-    def wait_for_outputs(self, prompt_id, status_box, timeout=1800):
+    def wait_for_outputs(self, prompt_id, status_box, timeout=1800, poll_interval=3):
+        """Poll ComfyUI history, surface execution failures and bound waiting time."""
+        if not prompt_id:
+            raise ValueError('ComfyUI did not return a prompt ID.')
+        timeout = max(1, int(timeout))
+        poll_interval = max(1, int(poll_interval))
         start = time.time()
+        last_caption = None
         while time.time() - start < timeout:
             history = json.loads(self._request(f'/history/{prompt_id}'))
             entry = history.get(prompt_id, {})
+            status = entry.get('status', {}) if isinstance(entry, dict) else {}
+            messages = status.get('messages', []) if isinstance(status, dict) else []
+            for message in messages:
+                if isinstance(message, (list, tuple)) and message and str(message[0]).lower() in {'execution_error', 'execution_interrupted'}:
+                    details = message[1] if len(message) > 1 else {}
+                    raise RuntimeError(f'ComfyUI execution failed: {str(details)[:1200]}')
             if entry.get('outputs'):
                 return entry['outputs']
-            status_box.caption('Generation is still running…')
-            time.sleep(3)
-        raise TimeoutError('Timed out waiting for ComfyUI. Check the ComfyUI queue and logs.')
+            elapsed = int(time.time() - start)
+            caption = f'Generation running · {elapsed}s elapsed · waiting for output…'
+            if caption != last_caption:
+                status_box.caption(caption)
+                last_caption = caption
+            time.sleep(min(poll_interval, max(1, timeout - elapsed)))
+        raise TimeoutError(f'ComfyUI timed out after {timeout} seconds. Check the server queue and logs, then retry.')
 
     def download_videos(self, outputs, folder):
         folder.mkdir(parents=True, exist_ok=True)
