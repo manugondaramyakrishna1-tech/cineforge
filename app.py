@@ -762,7 +762,7 @@ if workflow_file:
                 expected_width=export_config["width"],
                 expected_height=export_config["height"],
                 expected_fps=fps,
-                expected_duration=total,
+                expected_duration=trimmed_duration,
                 require_audio=True,
             )
             if validation.get("audio_silent"):
