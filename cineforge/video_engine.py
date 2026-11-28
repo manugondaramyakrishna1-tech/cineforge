@@ -73,6 +73,20 @@ def build_render_batch(scenes, camera_presets, look_presets, style, profile_name
     }
 
 
+def workflow_prompt_issues(workflow):
+    """Ensure the API workflow receives CineForge's per-scene prompt."""
+    if not isinstance(workflow, dict) or not workflow:
+        return ["A non-empty ComfyUI API workflow JSON is required."]
+    def contains(value, token):
+        if isinstance(value, dict):
+            return any(contains(item, token) for item in value.values())
+        if isinstance(value, list):
+            return any(contains(item, token) for item in value)
+        return isinstance(value, str) and token in value
+    if not contains(workflow, "__PROMPT__"):
+        return ["Workflow is missing the __PROMPT__ placeholder. Add it to the positive prompt text field in the ComfyUI API workflow so each CineForge scene uses its own prompt."]
+    return []
+
 def validate_provider_inputs(server, workflow):
     """Return human-readable issues for render setup without making network calls."""
     issues = []
