@@ -87,6 +87,13 @@ def workflow_prompt_issues(workflow):
         return ["Workflow is missing the __PROMPT__ placeholder. Add it to the positive prompt text field in the ComfyUI API workflow so each CineForge scene uses its own prompt."]
     return []
 
+def render_setup_issues(server, workflow):
+    """Validate all local prerequisites before enabling a ComfyUI render."""
+    issues = validate_provider_inputs(server, workflow)
+    if not issues:
+        issues.extend(workflow_prompt_issues(workflow))
+    return issues
+
 def validate_provider_inputs(server, workflow):
     """Return human-readable issues for render setup without making network calls."""
     issues = []
