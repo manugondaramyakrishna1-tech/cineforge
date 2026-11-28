@@ -113,5 +113,43 @@ class AssemblyCheckTests(unittest.TestCase):
 
 
 
+    def test_final_video_validator_rejects_video_stream_with_no_decodable_frames(self):
+        from unittest.mock import MagicMock, patch
+        from cineforge.assembly_checks import validate_final_video
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "broken_video.mp4"
+            output.write_bytes(b"not-empty")
+            video = MagicMock(type="video", width=1280, height=720,
+                              average_rate=30, base_rate=30,
+                              duration=3000, time_base=1 / 30)
+            packet = MagicMock(dts=0, stream=video)
+            packet.decode.return_value = []
+            container = MagicMock()
+            container.streams = [video]
+            container.duration = 1000000
+            container.demux.return_value = [packet]
+            with patch("av.open") as open_media:
+                open_media.return_value.__enter__.return_value = container
+                with self.assertRaisesRegex(ValueError, "no decodable video frames"):
+                    validate_final_video(output, 1280, 720, 30, require_audio=False)
+
+    def test_final_video_validator_rejects_wrong_resolution(self):
+        from unittest.mock import MagicMock, patch
+        from cineforge.assembly_checks import validate_final_video
+
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "wrong_size.mp4"
+            output.write_bytes(b"not-empty")
+            video = MagicMock(type="video", width=640, height=360)
+            container = MagicMock()
+            container.streams = [video]
+            with patch("av.open") as open_media:
+                open_media.return_value.__enter__.return_value = container
+                with self.assertRaisesRegex(ValueError, "resolution mismatch"):
+                    validate_final_video(output, 1280, 720, 30, require_audio=False)
+
+
+
 if __name__ == "__main__":
     unittest.main()
