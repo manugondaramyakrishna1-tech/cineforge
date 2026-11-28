@@ -107,30 +107,17 @@ with st.expander("Self-hosted video model diagnostics", expanded=True):
         st.caption("Test button is disabled until a supported GPU/accelerator is detected.")
 
 with st.sidebar:
-    st.subheader("AI video generation provider")
-    provider_mode = st.radio(
-        "Choose generation method",
-        ["Hosted (Replicate)", "ComfyUI (self-hosted)"],
-        key="video_provider_mode",
-        help="Hosted mode sends scene prompts to a hosted video model. ComfyUI mode keeps your existing self-hosted workflow."
-    )
-    if provider_mode == "ComfyUI (self-hosted)":
-        server = st.text_input("ComfyUI server URL (optional)", "", help="Use a private/restricted ComfyUI endpoint. Do not expose an unauthenticated ComfyUI port publicly.")
-        if st.button("Check ComfyUI connection"):
-            if not server.strip():
-                st.info("Enter your private ComfyUI server URL first.")
-            else:
-                diagnostic = check_server(server.strip())
-                if diagnostic["reachable"]:
-                    st.success(format_queue(diagnostic))
-                else:
-                    st.warning("ComfyUI is not reachable. " + format_queue(diagnostic))
-        if not server.strip():
-            st.caption("ComfyUI: Not configured · Optional")
+    st.subheader("Local AI video generation")
+    from cineforge.local_video import runtime_status
+    local_state = runtime_status()
+    st.json(local_state)
+    if not local_state.get("ready"):
+        st.warning("Local generation requires a supported GPU. This environment is not ready.")
     else:
-        server = "hosted"
-        st.caption("Hosted mode: CineForge sends scene prompts to Replicate. No ComfyUI server or GPU machine is needed.")
-        st.caption("Configure REPLICATE_API_TOKEN on the server using an environment variable or Streamlit secrets. Never paste API keys into project files or commit them to GitHub.")
+        st.success("Local model rendering is available on this machine.")
+    server = ""
+    provider_mode = "Local (CogVideoX)"
+    workflow_file = None
     character = st.text_area("Character continuity", st.session_state.get("character", "A traveler in a weathered dark-green cloak, leather backpack and boots; same appearance throughout"), height=90, key="character")
     negative = st.text_area("Negative prompt", "blurry, flicker, distorted anatomy, text, watermark")
     duration_choice = st.selectbox("Movie length", list(DURATIONS), key="duration_choice")
@@ -138,10 +125,6 @@ with st.sidebar:
     style = st.selectbox("Visual style", ["cinematic photorealism", "stylized fantasy film", "science fiction cinema", "documentary cinematic", "animated feature-film look"], key="visual_style")
     profile_name = st.selectbox("Output format", list(PRESETS), key="output_profile")
     profile = get_preset(profile_name)
-    st.caption(f"Target: {profile['width']} × {profile['height']} · {profile['fps']} FPS")
-    workflow_label = "Hosted model input template JSON" if provider_mode == "Hosted (Replicate)" else "ComfyUI API workflow JSON"
-    workflow_help = "JSON format: {model: 'owner/model', input: {...}}. Use __PROMPT__ in the model's prompt field and optionally __NEGATIVE__, __DURATION__, and __ASPECT_RATIO__. Check the selected model's API schema." if provider_mode == "Hosted (Replicate)" else "Upload an API-format ComfyUI workflow JSON containing __PROMPT__ and optionally __NEGATIVE__."
-    workflow_file = st.file_uploader(workflow_label, type=["json"], help=workflow_help)
     music_file = st.file_uploader("Optional soundtrack WAV", type=["wav"])
     music_volume = st.slider("Music volume", 0.0, 1.0, 0.18, key="music_volume")
     voice_volume = st.slider("Narration volume", 0.0, 1.0, 1.0, key="voice_volume")
@@ -150,43 +133,11 @@ with st.sidebar:
     transition_seconds = st.slider("Scene crossfade (seconds)", 0.0, 1.5, 0.5, step=0.1, key="transition_seconds")
     fps = st.slider("Final FPS", 12, 60, int(profile["fps"]), key="fps")
 
-from cineforge.video_engine import provider_status, validate_workflow, workflow_prompt_issues, render_setup_issues
-try:
-    replicate_token = st.secrets.get("REPLICATE_API_TOKEN", "")
-except Exception:
-    replicate_token = ""
-replicate_token = replicate_token or os.environ.get("REPLICATE_API_TOKEN", "")
-with st.expander("Prompt-to-video engine status", expanded=True):
-    parsed_workflow = None
-    if workflow_file is not None:
-        try:
-            parsed_workflow = json.loads(workflow_file.getvalue())
-        except Exception:
-            parsed_workflow = None
-    if provider_mode == "Hosted (Replicate)":
-        if replicate_token:
-            st.success("Hosted provider credential detected. The key is kept server-side.")
-        else:
-            st.warning("Hosted provider is selected, but REPLICATE_API_TOKEN is not configured on the server.")
-        if parsed_workflow is not None:
-            hosted_issues = validate_hosted_workflow(parsed_workflow)
-            for issue in hosted_issues:
-                st.error(issue)
-            if not hosted_issues:
-                st.caption("Hosted model template structure is valid. The selected model's input schema and output format are verified during a real request.")
-    else:
-        engine_state = provider_status(server, parsed_workflow)
-        if engine_state.ready:
-            st.info(engine_state.message)
-        else:
-            st.warning(engine_state.message)
-        if parsed_workflow is not None:
-            workflow_issues = validate_workflow(parsed_workflow)
-            if workflow_issues:
-                for issue in workflow_issues:
-                    st.error(issue)
-            else:
-                st.caption("Workflow JSON structure is non-empty. Node compatibility is only confirmed during an actual render.")
+from cineforge.local_video import runtime_status
+local_state = runtime_status()
+with st.expander("Local model status", expanded=True):
+    st.json(local_state)
+    st.caption("CineForge local rendering uses in-process model inference. No hosted video-generation API or ComfyUI.")
 
 
 st.header("Project Workspace Isolation")
