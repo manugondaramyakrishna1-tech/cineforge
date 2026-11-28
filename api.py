@@ -1,9 +1,9 @@
 """FastAPI video API with persistent SQLite job history."""
-import uuid, threading, subprocess, sqlite3, json, time
+import uuid, threading, subprocess, sqlite3, json, time, os, secrets
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File, Header
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 import torch
@@ -127,14 +127,67 @@ def health():\n    report=gpu_report(); report["backend"]=backend_status(); retu
 @app.post("/jobs",status_code=202)
 def create_job(request:GenerateRequest):
     report=gpu_report()
-    if not report["cuda_available"] and not backend_status()["endpoint_configured"]: raise HTTPException(status_code=503,detail=report["runtime_hint"]+" Configure HF_ENDPOINT_URL to use a hosted GPU endpoint.")
+    bridge_enabled=bool(os.getenv("CINEFORGE_FREE_GPU_BRIDGE_TOKEN"))\n    if not report["cuda_available"] and not backend_status()["endpoint_configured"] and not bridge_enabled: raise HTTPException(status_code=503,detail=report["runtime_hint"]+" Configure the free GPU bridge token or hosted endpoint.")
     job_id=str(uuid.uuid4()); stamp=now()
     settings=request.model_dump() if hasattr(request,"model_dump") else request.dict()
     j={"job_id":job_id,"prompt":request.prompt,"status":"queued","created_at":stamp,"updated_at":stamp,"output":None,"error":None,"settings":settings,"progress":0,"stage":"Queued","started_at":None,"elapsed_seconds":0}
     with lock: jobs[job_id]=j
     persist(j)
-    submitted[job_id]=executor.submit(worker,job_id,request)
+    if not bridge_enabled: submitted[job_id]=executor.submit(worker,job_id,request)
     return {"job_id":job_id,"status":"queued","status_url":f"/jobs/{job_id}"}
+
+
+def require_bridge_token(authorization):
+    expected=os.getenv("CINEFORGE_FREE_GPU_BRIDGE_TOKEN","").strip()
+    supplied=(authorization or "").removeprefix("Bearer ").strip()
+    if not expected or not secrets.compare_digest(supplied,expected):
+        raise HTTPException(status_code=401,detail="Invalid bridge credentials")
+
+@app.post("/bridge/claim")
+def bridge_claim(authorization: str = Header(default="")):
+    require_bridge_token(authorization)
+    with lock:
+        queued=sorted((j for j in jobs.values() if j["status"]=="queued"),key=lambda j:j["created_at"])
+        if not queued: return {"job":None}
+        job=queued[0]
+        job.update(status="running",stage="GPU notebook claimed job",progress=1,started_at=now(),updated_at=now())
+        snapshot=dict(job)
+    persist(snapshot)
+    return {"job":{"job_id":snapshot["job_id"],"prompt":snapshot["prompt"],"settings":snapshot["settings"]}}
+
+@app.post("/bridge/result/{job_id}")
+async def bridge_result(job_id: str, video: UploadFile = File(...), authorization: str = Header(default="")):
+    require_bridge_token(authorization)
+    if video.content_type not in ("video/mp4","application/octet-stream"):
+        raise HTTPException(status_code=415,detail="Expected an MP4 upload")
+    with lock:
+        job=jobs.get(job_id)
+        if not job: raise HTTPException(404,detail="Job not found")
+        if job["status"]!="running": raise HTTPException(409,detail="Job is not running")
+    path=OUTPUT_DIR/f"{job_id}.mp4"
+    size=0
+    with path.open("wb") as out:
+        while chunk:=await video.read(1024*1024):
+            size+=len(chunk)
+            if size>500*1024*1024:
+                out.close()
+                path.unlink(missing_ok=True)
+                raise HTTPException(413,detail="Video exceeds 500 MB limit")
+            out.write(chunk)
+    if size<128:
+        path.unlink(missing_ok=True)
+        raise HTTPException(400,detail="Uploaded video is empty or invalid")
+    update_job(job_id,status="completed",stage="Complete",progress=100,output=str(path),error=None)
+    return {"job_id":job_id,"status":"completed","bytes":size}
+
+@app.post("/bridge/fail/{job_id}")
+def bridge_fail(job_id: str, payload: dict, authorization: str = Header(default="")):
+    require_bridge_token(authorization)
+    with lock:
+        if job_id not in jobs: raise HTTPException(404,detail="Job not found")
+        if jobs[job_id]["status"]!="running": raise HTTPException(409,detail="Job is not running")
+    update_job(job_id,status="failed",stage="GPU notebook failed",error=str(payload.get("error","Generation failed"))[:1000])
+    return {"job_id":job_id,"status":"failed"}
 
 @app.get("/jobs")
 def list_jobs(limit:int=50):
