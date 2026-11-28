@@ -138,7 +138,11 @@ if st.session_state.get("prompt_storyboard_ready"):
 if st.button("Expand prompt into cinematic story"):
     st.session_state["expanded_prompt"] = expand_story(prompt, scene_count, style, character)
 story_prompt = st.session_state.get("expanded_prompt", prompt)
-scenes = plan(story_prompt, scene_count, style, character)
+scene_signature = (story_prompt, scene_count, style, character)
+if st.session_state.get("scene_cache_signature") != scene_signature:
+    st.session_state["editable_scenes"] = plan(story_prompt, scene_count, style, character)
+    st.session_state["scene_cache_signature"] = scene_signature
+scenes = st.session_state["editable_scenes"]
 from cineforge.director import analyze_scene_plan
 scene_plan_report = analyze_scene_plan(scenes)
 from cineforge.continuity import analyze_continuity
@@ -172,6 +176,7 @@ for position, scene_index in enumerate(order):
     if cols[2].button("↓", key=f"down_{position}", disabled=position==len(order)-1):
         st.session_state.scene_order = move_item(order, position, 1); st.rerun()
 scenes = [scenes[index] for index in st.session_state.scene_order]
+st.session_state["editable_scenes"] = scenes
 try:
     st.metric("Ordered timeline duration", f"{validate_timeline([{'seconds': scene.seconds} for scene in scenes])} seconds")
 except Exception as timeline_error:
@@ -330,6 +335,7 @@ from cineforge.scene_editor_utils import add_scene, duplicate_scene, remove_scen
 scene_action_cols = st.columns(3)
 if scene_action_cols[0].button("➕ Add scene", key="editor_add_scene"):
     scenes = add_scene(scenes, lambda: type(scenes[0])(title="New scene", prompt="Describe the visuals for this scene.", seconds=5, narration="", camera="Tracking shot"))
+    st.session_state["editable_scenes"] = scenes
     st.session_state.scene_order = list(range(len(scenes)))
     st.rerun()
 for i, scene in enumerate(scenes, 1):
@@ -342,10 +348,12 @@ for i, scene in enumerate(scenes, 1):
         action_cols = st.columns(2)
         if action_cols[0].button("Duplicate scene", key=f"duplicate_scene_{i}"):
             scenes = duplicate_scene(scenes, i-1)
+            st.session_state["editable_scenes"] = scenes
             st.session_state.scene_order = list(range(len(scenes)))
             st.rerun()
         if action_cols[1].button("Delete scene", key=f"delete_scene_{i}", disabled=len(scenes) <= 1):
             scenes = remove_scene(scenes, i-1)
+            st.session_state["editable_scenes"] = scenes
             st.session_state.scene_order = list(range(len(scenes)))
             st.rerun()
 
