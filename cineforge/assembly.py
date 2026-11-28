@@ -39,7 +39,10 @@ def _iter_clip_frames(path, width, height, fps, fade_seconds, color_grade, trim_
             duration_seconds = float(video.duration * video.time_base)
         elif video.frames and source_rate:
             duration_seconds = float(video.frames / source_rate)
-        trim_start = max(0.0, float(trim_start))\n        effective_end = duration_seconds if trim_end is None else min(duration_seconds, max(trim_start, float(trim_end)))\n        segment_duration = max(0.0, effective_end - trim_start) if duration_seconds is not None else 0.0\n        target_frames = max(0, round(segment_duration * fps)) if segment_duration else 0
+        trim_start = max(0.0, float(trim_start))
+        effective_end = duration_seconds if trim_end is None else min(duration_seconds, max(trim_start, float(trim_end)))
+        segment_duration = max(0.0, effective_end - trim_start) if duration_seconds is not None else 0.0
+        target_frames = max(0, round(segment_duration * fps)) if segment_duration else 0
         fade_frames = min(max(0, int(fade_seconds * fps)), target_frames // 2) if target_frames else 0
         first_timestamp = None
         next_output_frame = 0
