@@ -83,6 +83,13 @@ with st.expander("Self-hosted video model diagnostics", expanded=True):
         st.warning("Local video generation is unavailable in this environment. CineForge can still build storyboards and manage project assets; actual local model rendering requires supported GPU hardware.")
     st.caption("This diagnostic does not download model weights or call an external video-generation service.")
 
+    with st.expander("GPU / CUDA troubleshooting", expanded=not local_state.get("ready", False)):
+        st.markdown("**If PyTorch says no CUDA device detected:**")
+        st.markdown("1. Run \`python -m cineforge.gpu_setup\` in the project terminal.\n2. Run \`nvidia-smi\` to verify the NVIDIA driver and GPU are visible.\n3. Run the PyTorch check below.\n4. If a GPU is visible to the driver but CUDA is false, install a matching CUDA-enabled PyTorch build from [the official selector](https://pytorch.org/get-started/locally/).\n5. Restart the Python environment and rerun the diagnostic.")
+        st.code("python -c \\\"import torch; print(torch.__version__); print(torch.cuda.is_available()); print(torch.cuda.device_count())\\\"")
+        st.warning("A CUDA package cannot attach a GPU to a CPU-only host. GitHub Codespaces or another hosted runtime may not expose an NVIDIA GPU. Use a GPU-enabled machine/runtime; installing drivers may require system administrator access.")
+        st.markdown("**Local inference dependencies:** \`pip install -r requirements-local-video.txt\` (only after GPU access and compatible CUDA PyTorch are confirmed).")
+
     st.markdown("#### Local model clip test")
     local_test_prompt = st.text_area("Test prompt", "A cinematic aerial view of a misty mountain valley at sunrise", key="local_test_prompt")
     local_test_frames = st.slider("Test clip frames", 9, 49, 17, step=4, key="local_test_frames")
