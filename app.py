@@ -193,6 +193,16 @@ for storyboard_index, storyboard_scene in enumerate(scenes):
     storyboard_scene.prompt = st.session_state.get(f"storyboard_prompt_{storyboard_index}", storyboard_scene.prompt)
     storyboard_scene.narration = st.session_state.get(f"storyboard_narration_{storyboard_index}", storyboard_scene.narration)
 
+# Scene validation from the reusable scene-editing utility.
+from cineforge.scene_editor_utils import validate_scenes
+with st.expander("Scene edit validation", expanded=False):
+    scene_errors = validate_scenes(scenes)
+    if scene_errors:
+        for scene_error in scene_errors:
+            st.error(scene_error)
+    else:
+        st.success("All scenes have titles, prompts and valid durations.")
+
 st.header("Bilingual Voiceover Studio")
 from cineforge.voice import list_voices
 voice_mode = st.selectbox("Narration languages", ["English + Telugu (both)", "English only", "Telugu only"], key="voice_mode")
