@@ -51,5 +51,19 @@ class AssemblyCheckTests(unittest.TestCase):
                 validate_final_video(empty, 1280, 720, 30)
 
 
+    def test_invalid_clip_prevents_partial_compacted_timeline(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as tmp:
+            good = Path(tmp) / "scene_1.mp4"
+            missing = Path(tmp) / "scene_2.mp4"
+            good.touch()
+            with patch("av.open", side_effect=RuntimeError("invalid media")):
+                clips, issues = validate_clips([good, missing])
+            self.assertEqual(clips, [])
+            self.assertEqual(len(issues), 2)
+            self.assertIn("Clip 1 could not be inspected", issues[0])
+            self.assertIn("Clip 2 missing", issues[1])
+
+
 if __name__ == "__main__":
     unittest.main()
