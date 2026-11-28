@@ -47,6 +47,27 @@ prompt = st.text_area(
 )
 st.caption("Generation requires a running ComfyUI server and an API workflow file. The storyboard can be created and edited without them.")
 
+from cineforge.video_engine import provider_status, validate_workflow
+with st.expander("Prompt-to-video engine status", expanded=True):
+    parsed_workflow = None
+    if workflow_file is not None:
+        try:
+            parsed_workflow = json.loads(workflow_file.getvalue())
+        except Exception:
+            parsed_workflow = None
+    engine_state = provider_status(server, parsed_workflow)
+    if engine_state.ready:
+        st.info(engine_state.message)
+    else:
+        st.warning(engine_state.message)
+    if parsed_workflow is not None:
+        workflow_issues = validate_workflow(parsed_workflow)
+        if workflow_issues:
+            for issue in workflow_issues:
+                st.error(issue)
+        else:
+            st.caption("Workflow JSON structure is non-empty. Node compatibility is only confirmed during an actual render.")
+
 with st.expander("Release readiness audit"):
     audit = audit_repo(".")
     st.json(audit)
