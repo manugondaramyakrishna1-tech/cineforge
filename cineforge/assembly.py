@@ -107,10 +107,13 @@ def _assemble_video_only(clips, output: Path, fps: int, fade_seconds: float = 0.
     transition_seconds = float(transition_seconds)
     if transition_seconds < 0:
         raise ValueError("Transition duration cannot be negative.")
+    ranges = list(trim_ranges or [])
+    if ranges and len(ranges) != len(clips):
+        raise ValueError("Trim ranges must match the number of video clips.")
     transition_frames = round(transition_seconds * fps)
     if transition_frames:
         clip_frame_counts = []
-        for clip_path in clips:
+        for clip_index, clip_path in enumerate(clips):
             with av.open(str(clip_path)) as source:
                 video = next((item for item in source.streams if item.type == 'video'), None)
                 if video is None:
@@ -122,13 +125,15 @@ def _assemble_video_only(clips, output: Path, fps: int, fade_seconds: float = 0.
                     duration = float(video.frames / (video.average_rate or video.base_rate))
                 if duration is None or duration <= 0:
                     raise ValueError(f"Unable to determine clip duration for transition validation: {clip_path}")
-                clip_frame_counts.append(round(duration * fps))
+                trim_start, trim_end = ranges[clip_index] if ranges else (0.0, None)
+                trim_start = max(0.0, float(trim_start))
+                effective_end = duration if trim_end is None else min(duration, max(trim_start, float(trim_end)))
+                effective_duration = max(0.0, effective_end - trim_start)
+                if effective_duration <= 0:
+                    raise ValueError(f"Trim range leaves no frames in clip: {clip_path}")
+                clip_frame_counts.append(round(effective_duration * fps))
         if len(clip_frame_counts) > 1 and transition_frames >= min(clip_frame_counts):
-            raise ValueError("Transition duration must be shorter than every clip.")
-
-    ranges = list(trim_ranges or [])
-    if ranges and len(ranges) != len(clips):
-        raise ValueError("Trim ranges must match the number of video clips.")
+            raise ValueError("Transition duration must be shorter than every trimmed clip.")
     streams = []
     for clip_index, path in enumerate(clips):
         trim_start, trim_end = ranges[clip_index] if ranges else (0.0, None)
