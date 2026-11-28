@@ -114,7 +114,7 @@ with st.expander("Self-hosted video model diagnostics", expanded=True):
                 detected_platform = str(diagnostic_report.get("platform", "")).lower()
                 if "windows" in detected_platform:
                     st.markdown("**Windows:** install the NVIDIA driver, restart, then open a fresh terminal and rerun this check.")
-                    st.markdown("[Official NVIDIA driver downloads](https://www.nvidia.com/en-us/drivers/")
+                    st.markdown("[Official NVIDIA driver downloads](https://www.nvidia.com/en-us/drivers/)")
                 elif "linux" in detected_platform:
                     st.markdown("**Linux:** use the distribution-recommended driver installer and restart. Ubuntu documents the Additional Drivers app and `ubuntu-drivers` method.")
                     st.markdown("[Ubuntu driver guidance](https://ubuntu.com/desktop/docs/en/latest/how-to/graphics/install-nvidia-drivers/)")
