@@ -1,5 +1,5 @@
 """FastAPI video API with persistent SQLite job history."""
-import uuid, threading, subprocess, sqlite3, json
+import uuid, threading, subprocess, sqlite3, json, time
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -29,10 +29,17 @@ def init_db():
     with db() as c:
         c.execute("""CREATE TABLE IF NOT EXISTS jobs (
           job_id TEXT PRIMARY KEY, prompt TEXT NOT NULL, status TEXT NOT NULL,
-          created_at TEXT NOT NULL, updated_at TEXT NOT NULL, output TEXT,
+          created_at TEXT NOT NULL, updated_at TEXT NOT NULL, output TEXT, progress INTEGER DEFAULT 0, stage TEXT, started_at TEXT, elapsed_seconds REAL,
           error TEXT, settings TEXT NOT NULL)""")
         c.execute("UPDATE jobs SET status='failed', error='Interrupted by server restart', updated_at=? WHERE status IN ('queued','running')", (now(),))
     reload_jobs()
+
+def ensure_columns():
+    with db() as c:
+        cols={r["name"] for r in c.execute("PRAGMA table_info(jobs)").fetchall()}
+        for name, typ in [("progress","INTEGER DEFAULT 0"),("stage","TEXT"),("started_at","TEXT"),("elapsed_seconds","REAL")]:
+            if name not in cols: c.execute("ALTER TABLE jobs ADD COLUMN "+name+" "+typ)
+ensure_columns()
 
 def reload_jobs():
     with db() as c:
@@ -50,6 +57,21 @@ class GenerateRequest(BaseModel):
     steps: int = Field(default=25, ge=1, le=50)
     guidance: float = Field(default=6.0, ge=1.0, le=10.0)
     seed: int = Field(default=42, ge=0, le=9999999)
+
+def gpu_metrics():
+    try:
+        p=subprocess.run(["nvidia-smi","--query-gpu=utilization.gpu,memory.used,memory.total","--format=csv,noheader,nounits"],capture_output=True,text=True,timeout=3)
+        if p.returncode!=0: return {"available":False,"error":p.stderr[:300]}
+        vals=p.stdout.strip().split(",")
+        if len(vals)<3: return {"available":False,"error":"Unexpected nvidia-smi output"}
+        return {"available":True,"utilization_percent":int(vals[0].strip()),"memory_used_mb":int(vals[1].strip()),"memory_total_mb":int(vals[2].strip())}
+    except (FileNotFoundError,subprocess.TimeoutExpired) as e: return {"available":False,"error":str(e)}
+
+@app.get("/monitor")
+def monitor():
+    active=next((dict(j) for j in jobs.values() if j["status"]=="running"),None)
+    if active: active.pop("output",None)
+    return {"gpu":gpu_metrics(),"queue":queue_snapshot(),"active_job":active}
 
 def gpu_report():
     available=torch.cuda.is_available()
@@ -80,13 +102,16 @@ def update_job(job_id, **changes):
     persist(snapshot)
 
 def worker(job_id, request):
-    update_job(job_id,status="running")
+    started=time.monotonic()
+    update_job(job_id,status="running",stage="Loading model",progress=0,started_at=now(),elapsed_seconds=0)
+    def on_step(step,total):
+        update_job(job_id,stage="Generating frames",progress=int(step*100/max(total,1)),elapsed_seconds=round(time.monotonic()-started,1))
     try:
         path=OUTPUT_DIR/f"{job_id}.mp4"
-        generate_video(request.prompt,str(path),request.model_id,request.frames,request.steps,request.guidance,request.seed)
-        update_job(job_id,status="completed",output=str(path),error=None)
+        generate_video(request.prompt,str(path),request.model_id,request.frames,request.steps,request.guidance,request.seed,progress_callback=on_step)
+        update_job(job_id,status="completed",stage="Complete",progress=100,output=str(path),error=None,elapsed_seconds=round(time.monotonic()-started,1))
     except Exception as exc:
-        update_job(job_id,status="failed",error=str(exc))
+        update_job(job_id,status="failed",stage="Failed",error=str(exc),elapsed_seconds=round(time.monotonic()-started,1)))
 
 def queue_snapshot():
     queued=sorted((j for j in jobs.values() if j["status"]=="queued"),key=lambda j:j["created_at"])
@@ -105,7 +130,7 @@ def create_job(request:GenerateRequest):
     if not report["cuda_available"]: raise HTTPException(status_code=503,detail=report["runtime_hint"])
     job_id=str(uuid.uuid4()); stamp=now()
     settings=request.model_dump() if hasattr(request,"model_dump") else request.dict()
-    j={"job_id":job_id,"prompt":request.prompt,"status":"queued","created_at":stamp,"updated_at":stamp,"output":None,"error":None,"settings":settings}
+    j={"job_id":job_id,"prompt":request.prompt,"status":"queued","created_at":stamp,"updated_at":stamp,"output":None,"error":None,"settings":settings,"progress":0,"stage":"Queued","started_at":None,"elapsed_seconds":0}
     with lock: jobs[job_id]=j
     persist(j)
     submitted[job_id]=executor.submit(worker,job_id,request)
