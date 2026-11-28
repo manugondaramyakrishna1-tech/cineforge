@@ -39,8 +39,6 @@ def ensure_columns():
         cols={r["name"] for r in c.execute("PRAGMA table_info(jobs)").fetchall()}
         for name, typ in [("progress","INTEGER DEFAULT 0"),("stage","TEXT"),("started_at","TEXT"),("elapsed_seconds","REAL")]:
             if name not in cols: c.execute("ALTER TABLE jobs ADD COLUMN "+name+" "+typ)
-ensure_columns()
-
 def reload_jobs():
     with db() as c:
         rows=c.execute("SELECT * FROM jobs ORDER BY created_at DESC").fetchall()
@@ -49,6 +47,7 @@ def reload_jobs():
         jobs[j["job_id"]]=j
 
 init_db()
+ensure_columns()
 
 class GenerateRequest(BaseModel):
     prompt: str = Field(min_length=3, max_length=2000)
