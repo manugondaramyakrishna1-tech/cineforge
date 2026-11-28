@@ -69,7 +69,12 @@ def _iter_clip_frames(path, width, height, fps, fade_seconds, color_grade, trim_
                 timestamp = local_index / float(fps)
             if first_timestamp is None:
                 first_timestamp = timestamp
-            target_index = max(0, round((timestamp - first_timestamp) * fps))
+            relative_timestamp = timestamp - first_timestamp
+            if relative_timestamp < trim_start:
+                continue
+            if trim_end is not None and relative_timestamp > float(trim_end):
+                break
+            target_index = max(0, round((relative_timestamp - trim_start) * fps))
             if target_index < next_output_frame:
                 continue
             while previous_rgb is not None and next_output_frame < target_index:
@@ -121,10 +126,18 @@ def _assemble_video_only(clips, output: Path, fps: int, fade_seconds: float = 0.
         if len(clip_frame_counts) > 1 and transition_frames >= min(clip_frame_counts):
             raise ValueError("Transition duration must be shorter than every clip.")
 
-    streams = [
-        _iter_clip_frames(path, width, height, fps, fade_seconds, color_grade)
-        for path in clips
-    ]
+    ranges = list(trim_ranges or [])
+    if ranges and len(ranges) != len(clips):
+        raise ValueError("Trim ranges must match the number of video clips.")
+    streams = []
+    for clip_index, path in enumerate(clips):
+        trim_start, trim_end = ranges[clip_index] if ranges else (0.0, None)
+        streams.append(
+            _iter_clip_frames(
+                path, width, height, fps, fade_seconds, color_grade,
+                trim_start=trim_start, trim_end=trim_end,
+            )
+        )
     container = av.open(str(output), mode='w')
     stream = container.add_stream('libx264', rate=fps)
     stream.width, stream.height = width, height
